@@ -44,7 +44,7 @@ struct GameView: View {
                 
                 // Mostrar Tiempo y Volteos en vertical para ahorrar espacio en iPhone
                 VStack(alignment: .trailing) {
-                    Text("Tiempo: **\(Score(playerName: "", timeInSeconds: viewModel.timeElapsed, mode: .color).displayTime)**")
+                    Text("Tiempo: **\(Score(playerName: "", timeInSeconds: viewModel.timeElapsed, mode: .color, numberOfPairs: viewModel.cards.count / 2).displayTime)**")
                     Text("Volteos: **\(viewModel.flipCount)**")
                 }
             }
