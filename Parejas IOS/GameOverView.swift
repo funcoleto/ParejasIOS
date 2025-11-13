@@ -10,6 +10,8 @@ struct GameOverView: View {
     
     @State private var playerName: String = ""
     @State private var scoreSaved: Bool = false
+    @Environment(\.presentationMode) var presentationMode
+
     
     @available(iOS 15.0, *)
     var body: some View {
@@ -48,6 +50,11 @@ struct GameOverView: View {
             
             Button("Jugar de Nuevo") {
                 onRestart()
+            }
+            .buttonStyle(.bordered)
+
+            Button("Volver al Menú Principal") {
+                presentationMode.wrappedValue.dismiss()
             }
             .buttonStyle(.bordered)
         }

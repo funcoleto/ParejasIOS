@@ -20,7 +20,7 @@ class GameViewModel: ObservableObject {
     // Función clave 1: Inicialización y configuración del tablero.
     init(mode: GameMode) {
         self.currentMode = mode
-        startGame()
+        // Se elimina la llamada a startGame() de aquí para que se controle desde la vista.
     }
     
     // Función clave 2: Reinicia o inicia el juego.
@@ -126,7 +126,7 @@ class GameViewModel: ObservableObject {
     }
     
     // Función clave 6: Detiene el temporizador.
-    private func stopTimer() {
+    func stopTimer() {
         timer?.invalidate()
         timer = nil
     }
