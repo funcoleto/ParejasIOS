@@ -9,7 +9,7 @@ Este es un clásico juego de encontrar parejas para iOS, desarrollado con SwiftU
   - **Letras:** Encuentra las parejas de letras mayúsculas y minúsculas.
   - **Colores y Letras:** Encuentra las parejas de cartas que tienen el mismo color y la misma letra.
   - **Figuras y Colores:** Encuentra las parejas de cartas que tienen la misma figura y el mismo color.
-  - **Matemáticas:** Resuelve operaciones matemáticas (suma, resta, multiplicación, división) para poner a prueba tu agilidad mental.
+  - **Matemáticas:** Resuelve operaciones matemáticas en un formato visual que simula una cuenta en papel, con representaciones de barritas para los números. El juego te muestra la respuesta correcta antes de continuar a la siguiente operación.
 - **Ranking Detallado:** Guarda tus mejores tiempos y compite por el top 10 en cada modo de juego. Ahora, el ranking también muestra con cuántas parejas se consiguió cada puntuación.
 - **Tablero Adaptable:** La cuadrícula de juego se ajusta automáticamente para ofrecer la mejor distribución visual posible, sin importar el número de cartas o el dispositivo.
 
