@@ -57,3 +57,43 @@ struct ContentView: View {
         }
     }
 }
+
+import Foundation
+
+class SettingsManager: ObservableObject {
+    @Published var numberOfPairs: Int {
+        didSet {
+            UserDefaults.standard.set(numberOfPairs, forKey: "numberOfPairs")
+        }
+    }
+
+    @Published var showMatchedCards: Bool {
+        didSet {
+            UserDefaults.standard.set(showMatchedCards, forKey: "showMatchedCards")
+        }
+    }
+
+    init() {
+        self.numberOfPairs = UserDefaults.standard.object(forKey: "numberOfPairs") as? Int ?? 10
+        self.showMatchedCards = UserDefaults.standard.object(forKey: "showMatchedCards") as? Bool ?? false
+    }
+}
+
+struct OptionsView: View {
+    @ObservedObject var settings: SettingsManager
+
+    var body: some View {
+        Form {
+            Section(header: Text("Configuración del Juego")) {
+                Stepper(value: $settings.numberOfPairs, in: 2...20) {
+                    Text("Número de Parejas: \(settings.numberOfPairs)")
+                }
+
+                Toggle(isOn: $settings.showMatchedCards) {
+                    Text("Mostrar Cartas Emparejadas")
+                }
+            }
+        }
+        .navigationTitle("Opciones")
+    }
+}
