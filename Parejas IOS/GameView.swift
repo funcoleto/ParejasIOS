@@ -13,19 +13,20 @@ struct GameView: View {
     // Propiedad calculada: Determina el número de columnas para la cuadrícula
     private var columns: [GridItem] {
         let totalCards = viewModel.cards.count
-        
         guard totalCards > 0 else { return [] }
-        
+
+        // Algoritmo para determinar el número de columnas ideal
         let numColumns: Int
-        
-        if UIDevice.current.userInterfaceIdiom == .pad {
-            // iPad: Mayor densidad. Hasta 8 columnas.
-            // Ejemplo: 40 cartas (8x5), 32 cartas (8x4), 20 cartas (5x4)
-            // Se calcula el número de columnas basado en mantener las filas bajas.
-            numColumns = min(8, Int(ceil(Double(totalCards) / 5.0)))
-        } else {
-            // iPhone/iPod: Mantenemos 4 columnas para 20 cartas (4x5)
+        if totalCards <= 12 {
+            numColumns = 3
+        } else if totalCards <= 20 {
             numColumns = 4
+        } else if totalCards <= 30 {
+            numColumns = 5
+        } else if totalCards <= 42 {
+            numColumns = 6
+        } else {
+            numColumns = 7
         }
         
         // Crea las columnas flexibles para que se ajusten al ancho disponible.
@@ -82,6 +83,7 @@ struct GameView: View {
         // Pantalla de fin de juego (modal)
         .sheet(isPresented: $showingGameOver) {
             GameOverView(
+                viewModel: viewModel,
                 mode: viewModel.currentMode,
                 score: finalTime,
                 rankingManager: rankingManager,
