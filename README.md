@@ -16,9 +16,12 @@ Este es un clásico juego de encontrar parejas para iOS, desarrollado con SwiftU
 
 - **Número de Parejas:** Puedes elegir el número de parejas de cartas con las que quieres jugar, desde 2 hasta 20.
 - **Mostrar Cartas Emparejadas:** Puedes elegir si las cartas emparejadas desaparecen de la pantalla o se quedan visibles.
+- **Música de Fondo:** Se ha añadido música de fondo para ambientar el juego. Puedes activarla o desactivarla desde el menú de opciones.
 
 ## Cambios Recientes
 
+- **Música de Fondo:** Se ha implementado música de fondo con un control de reproducción en el menú de opciones.
+- **Corrección de "Mostrar Cartas Emparejadas":** Se ha solucionado un error que provocaba que la opción de mostrar las cartas emparejadas no funcionara correctamente.
 - **Añadidas Opciones de Personalización:** Se ha añadido un menú de opciones para personalizar la experiencia de juego.
 - **Corrección de Errores en la Pantalla de Fin de Juego:** Se ha solucionado un problema que provocaba que el temporizador mostrara "00:00" y se ha mejorado la navegación del botón "Volver al Menú Principal".
 - Se ha solucionado un problema que impedía que el juego se reiniciara correctamente al salir y volver a entrar a una partida.

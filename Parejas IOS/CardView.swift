@@ -75,10 +75,8 @@ struct CardView: View {
         ZStack {
             let shape = RoundedRectangle(cornerRadius: 10)
             
-            // 1. Carta Emparejada (si está emparejada, se oculta o se desvanece)
-            if card.isMatched {
-                shape.opacity(0)
-            } else if card.isFaceUp {
+            // La lógica de visibilidad ahora se controla en GameView
+            if card.isFaceUp {
                 // 2. Carta Boca Arriba (Muestra el contenido)
                 shape.fill(.white)
                 shape.strokeBorder(.gray, lineWidth: 3)
