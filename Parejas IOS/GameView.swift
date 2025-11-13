@@ -89,5 +89,11 @@ struct GameView: View {
                 }
             )
         }
+        .onAppear {
+            viewModel.startGame()
+        }
+        .onDisappear {
+            viewModel.stopTimer()
+        }
     }
 }
