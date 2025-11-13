@@ -32,6 +32,8 @@ struct RankingView: View {
                     
                     // Tiempo: Ancho ligeramente más ancho para MM:SS
                     Text("Tiempo").bold().frame(width: 60, alignment: .trailing)
+                    // Parejas: Nueva columna
+                    Text("Parejas").bold().frame(width: 70, alignment: .trailing)
                 }
                 // Importante: forzar al HStack a ocupar todo el ancho de la List
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -55,6 +57,8 @@ struct RankingView: View {
                             
                             // Tiempo
                             Text(score.displayTime).frame(width: 60, alignment: .trailing)
+                            // Parejas
+                            Text("\(score.numberOfPairs)").frame(width: 70, alignment: .trailing)
                         }
                     }
                 }

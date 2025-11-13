@@ -1,14 +1,15 @@
 import Foundation
 
 // La estructura para guardar los datos del ranking.
-struct Score: Identifiable, Codable {
-    let id = UUID()
-    let playerName: String
-    let timeInSeconds: Double // El valor principal para ordenar
-    let mode: GameMode
-    let date = Date()
+struct Score: Identifiable, Codable, Equatable {
+    var id = UUID()
+    var playerName: String
+    var timeInSeconds: Double
+    var mode: GameMode
+    var numberOfPairs: Int // Nueva propiedad
+    var date = Date()
     
-    // Función para mostrar el tiempo en formato MM:SS
+    // Formatea el tiempo para visualización (ej: 01:30.5)
     var displayTime: String {
         let formatter = DateComponentsFormatter()
         formatter.allowedUnits = [.minute, .second]
