@@ -4,6 +4,7 @@ import SwiftUI
 struct CardView: View {
     @ObservedObject var viewModel: GameViewModel
     let card: Card
+    let settings: SettingsManager
     
     // Determina el color o la forma de visualización según el modo
     private var faceUpContent: some View {

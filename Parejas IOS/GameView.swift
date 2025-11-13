@@ -6,7 +6,9 @@ struct GameView: View {
     @ObservedObject var viewModel: GameViewModel
     @ObservedObject var rankingManager: RankingManager
     
+    @Environment(\.presentationMode) var presentationMode
     @State private var showingGameOver = false
+    @State private var finalTime: Double = 0.0
     
     // Propiedad calculada: Determina el número de columnas para la cuadrícula
     private var columns: [GridItem] {
@@ -51,10 +53,10 @@ struct GameView: View {
             // Cuadrícula de Cartas con Columnas Dinámicas
             LazyVGrid(columns: columns, spacing: 10) {
                 ForEach(viewModel.cards) { card in
-                    CardView(viewModel: viewModel, card: card)
+                    CardView(viewModel: viewModel, card: card, settings: viewModel.settings)
                         // AspectRatio para mantener la forma vertical de la carta
                         .aspectRatio(2/3, contentMode: .fit)
-                        .opacity(card.isMatched ? 0 : 1) // Oculta las cartas emparejadas
+                        .opacity(card.isMatched && !viewModel.settings.showMatchedCards ? 0 : 1) // Oculta las cartas emparejadas
                         .onTapGesture {
                             viewModel.choose(card: card)
                         }
@@ -72,6 +74,7 @@ struct GameView: View {
         // Detector de fin de juego
         .onChange(of: viewModel.isGameOver) { isOver in
             if isOver {
+                finalTime = viewModel.timeElapsed
                 showingGameOver = true
             }
         }
@@ -80,12 +83,16 @@ struct GameView: View {
         .sheet(isPresented: $showingGameOver) {
             GameOverView(
                 mode: viewModel.currentMode,
-                score: viewModel.timeElapsed,
+                score: finalTime,
                 rankingManager: rankingManager,
-                onRestart: {
+                onPlayAgain: {
                     // Lógica para reiniciar el juego y cerrar el modal
                     viewModel.startGame()
                     showingGameOver = false
+                },
+                onMainMenu: {
+                    showingGameOver = false
+                    presentationMode.wrappedValue.dismiss()
                 }
             )
         }

@@ -6,11 +6,11 @@ struct GameOverView: View {
     let mode: GameMode
     let score: Double
     @ObservedObject var rankingManager: RankingManager
-    let onRestart: () -> Void
+    let onPlayAgain: () -> Void
+    let onMainMenu: () -> Void
     
     @State private var playerName: String = ""
     @State private var scoreSaved: Bool = false
-    @Environment(\.presentationMode) var presentationMode
 
     
     @available(iOS 15.0, *)
@@ -49,12 +49,12 @@ struct GameOverView: View {
             }
             
             Button("Jugar de Nuevo") {
-                onRestart()
+                onPlayAgain()
             }
             .buttonStyle(.bordered)
 
             Button("Volver al Menú Principal") {
-                presentationMode.wrappedValue.dismiss()
+                onMainMenu()
             }
             .buttonStyle(.bordered)
         }

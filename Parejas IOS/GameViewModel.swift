@@ -17,9 +17,11 @@ class GameViewModel: ObservableObject {
     // Almacena los identificadores de las cartas que están boca arriba.
     private var faceUpCardIDs: [UUID] = []
     
+    let settings: SettingsManager
     // Función clave 1: Inicialización y configuración del tablero.
-    init(mode: GameMode) {
+    init(mode: GameMode, settings: SettingsManager) {
         self.currentMode = mode
+        self.settings = settings
         // Se elimina la llamada a startGame() de aquí para que se controle desde la vista.
     }
     
@@ -29,7 +31,7 @@ class GameViewModel: ObservableObject {
         let isPad = UIDevice.current.userInterfaceIdiom == .pad
         
         // iPad: hasta 40 cartas (20 pares). iPhone: hasta 20 cartas (10 pares).
-        let maxPairs = isPad ? 20 : 10
+        let maxPairs = settings.numberOfPairs
         
         // Asegúrate de que no pides más contenido del disponible
         let availableContents = currentMode.initialUniqueContents().count

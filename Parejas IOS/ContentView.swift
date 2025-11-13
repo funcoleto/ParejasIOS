@@ -9,6 +9,7 @@ import SwiftUI
 // ContentView.swift
 struct ContentView: View {
     @StateObject var rankingManager = RankingManager()
+    @StateObject var settingsManager = SettingsManager()
 
     var body: some View {
         NavigationView {
@@ -22,7 +23,7 @@ struct ContentView: View {
                     NavigationLink(destination:
                         // Envuelve el destino en una ZStack. Esto es un truco conocido de SwiftUI.
                         ZStack {
-                            GameView(viewModel: GameViewModel(mode: mode), rankingManager: rankingManager)
+                            GameView(viewModel: GameViewModel(mode: mode, settings: settingsManager), rankingManager: rankingManager)
                         }
                     ) {
                         Text("Modo \(mode.rawValue)")
@@ -39,6 +40,13 @@ struct ContentView: View {
                 
                 NavigationLink(destination: RankingView(rankingManager: rankingManager)) {
                     Text("🏆 Ver Top 10 Ranking")
+                        .font(.title2).bold()
+                        .padding()
+                        .foregroundColor(.blue)
+                }
+
+                NavigationLink(destination: OptionsView(settings: settingsManager)) {
+                    Text("⚙️ Opciones")
                         .font(.title2).bold()
                         .padding()
                         .foregroundColor(.blue)
