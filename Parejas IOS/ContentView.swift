@@ -217,7 +217,7 @@ class MathViewModel: ObservableObject {
     @Published var remainingOperations: Int
     @Published var isGameOver: Bool = false
 
-    private let settings: SettingsManager
+    let settings: SettingsManager
     private let operations: [OperationType]
 
     init(settings: SettingsManager, operations: Set<OperationType>) {

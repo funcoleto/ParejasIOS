@@ -10,6 +10,8 @@ struct CardView: View {
     private var faceUpContent: some View {
         Group {
             switch card.mode {
+            case .matematicas:
+                EmptyView()
             case .color:
                 // AHORA USAMOS LA FUNCIÓN DE EXTENSIÓN
                 Color.from(colorName: card.content)
