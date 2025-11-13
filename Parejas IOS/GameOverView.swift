@@ -1,7 +1,6 @@
 import SwiftUI
 
 // Se muestra cuando el juego termina para capturar el nombre y guardar el ranking.
-@available(iOS 15.0, *)
 struct GameOverView: View {
     let mode: GameMode
     let score: Double
@@ -13,7 +12,6 @@ struct GameOverView: View {
     @State private var scoreSaved: Bool = false
 
     
-    @available(iOS 15.0, *)
     var body: some View {
         VStack(spacing: 20) {
             Text("¡Juego Terminado! 🥳")
@@ -32,17 +30,13 @@ struct GameOverView: View {
                     .multilineTextAlignment(.center)
                 
                 // Función clave: Guardar la puntuación en el RankingManager
-                if #available(iOS 15.0, *) {
-                    Button("Guardar Puntuación") {
-                        guard !playerName.isEmpty else { return }
-                        let newScore = Score(playerName: playerName, timeInSeconds: score, mode: mode)
-                        rankingManager.saveScore(newScore: newScore)
-                        scoreSaved = true
-                    }
-                    .buttonStyle(.borderedProminent)
-                } else {
-                    // Fallback on earlier versions
+                Button("Guardar Puntuación") {
+                    guard !playerName.isEmpty else { return }
+                    let newScore = Score(playerName: playerName, timeInSeconds: score, mode: mode)
+                    rankingManager.saveScore(newScore: newScore)
+                    scoreSaved = true
                 }
+                .buttonStyle(.borderedProminent)
             } else {
                 Text("¡Puntuación guardada con éxito!")
                     .foregroundColor(.green)
