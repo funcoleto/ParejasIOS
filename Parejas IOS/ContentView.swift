@@ -91,6 +91,46 @@ struct ContentView: View {
     }
 }
 
+// Vista para mostrar la operación matemática
+struct OperationDisplayView: View {
+    let problem: MathProblem
+
+    var body: some View {
+        VStack(alignment: .trailing, spacing: 8) {
+            HStack {
+                Text(String(problem.operand1))
+                Spacer()
+                Text(bars(for: problem.operand1))
+            }
+            HStack {
+                Text(operationSymbol(for: problem.operation))
+                Text(String(problem.operand2))
+                Spacer()
+                Text(bars(for: problem.operand2))
+            }
+            Rectangle()
+                .frame(height: 2)
+                .padding(.leading, 20)
+        }
+        .font(.largeTitle)
+        .frame(width: 200)
+    }
+
+    private func operationSymbol(for type: OperationType) -> String {
+        switch type {
+        case .suma: return "+"
+        case .resta: return "-"
+        case .multiplicacion: return "x"
+        case .division: return "÷"
+        }
+    }
+
+    private func bars(for number: Int) -> String {
+        guard number < 10 else { return "" }
+        return String(repeating: "|", count: number)
+    }
+}
+
 import Foundation
 
 class SettingsManager: ObservableObject {
@@ -166,6 +206,14 @@ enum OperationType: String, CaseIterable, Identifiable {
     var id: Self { self }
 }
 
+// Estructura para un problema matemático
+struct MathProblem {
+    let operand1: Int
+    let operand2: Int
+    let operation: OperationType
+    let answer: Int
+}
+
 // Vista para seleccionar las operaciones
 struct OperationSelectionView: View {
     @ObservedObject var settings: SettingsManager
@@ -211,11 +259,12 @@ struct OperationSelectionView: View {
 
 // ViewModel para el juego de matemáticas
 class MathViewModel: ObservableObject {
-    @Published var currentOperation: (String, Int)? = nil
+    @Published var currentProblem: MathProblem? = nil
     @Published var userAnswer: String = ""
     @Published var score: Int = 0
     @Published var remainingOperations: Int
     @Published var isGameOver: Bool = false
+    @Published var isShowingAnswer: Bool = false
 
     let settings: SettingsManager
     private let operations: [OperationType]
@@ -229,43 +278,44 @@ class MathViewModel: ObservableObject {
 
     func generateNewOperation() {
         guard let operationType = operations.randomElement() else { return }
-        var question: String
+        var operand1: Int
+        var operand2: Int
         var answer: Int
 
         switch operationType {
         case .suma:
-            let a = Int.random(in: 1...20)
-            let b = Int.random(in: 1...20)
-            question = "\(a) + \(b) ="
-            answer = a + b
+            operand1 = Int.random(in: 1...20)
+            operand2 = Int.random(in: 1...20)
+            answer = operand1 + operand2
         case .resta:
-            let a = Int.random(in: 10...30)
-            let b = Int.random(in: 1...a)
-            question = "\(a) - \(b) ="
-            answer = a - b
+            operand1 = Int.random(in: 10...30)
+            operand2 = Int.random(in: 1...operand1)
+            answer = operand1 - operand2
         case .multiplicacion:
-            let a = Int.random(in: 2...10)
-            let b = Int.random(in: 2...10)
-            question = "\(a) x \(b) ="
-            answer = a * b
+            operand1 = Int.random(in: 2...10)
+            operand2 = Int.random(in: 2...10)
+            answer = operand1 * operand2
         case .division:
-            let b = Int.random(in: 2...10)
+            operand2 = Int.random(in: 2...10)
             answer = Int.random(in: 2...10)
-            let a = b * answer
-            question = "\(a) ÷ \(b) ="
+            operand1 = operand2 * answer
         }
-        currentOperation = (question, answer)
+        currentProblem = MathProblem(operand1: operand1, operand2: operand2, operation: operationType, answer: answer)
     }
 
     func submitAnswer() {
-        guard let correctAnswer = currentOperation?.1 else { return }
+        guard let correctAnswer = currentProblem?.answer else { return }
 
         if Int(userAnswer) == correctAnswer {
             score += 1
         }
+        isShowingAnswer = true
+    }
 
+    func nextOperation() {
         remainingOperations -= 1
         userAnswer = ""
+        isShowingAnswer = false
 
         if remainingOperations > 0 {
             generateNewOperation()
@@ -287,7 +337,7 @@ struct MathGameView: View {
                     .font(.largeTitle)
                 Text("Tu puntuación: \(viewModel.score) / \(viewModel.settings.numberOfOperations)")
                     .font(.title)
-                Button("Jugar de Nuevo") {
+                Button("Volver al Menú") {
                     presentationMode.wrappedValue.dismiss()
                 }
                 .padding()
@@ -295,20 +345,35 @@ struct MathGameView: View {
                 Text("Operaciones Restantes: \(viewModel.remainingOperations)")
                     .font(.headline)
 
-                if let operation = viewModel.currentOperation {
-                    Text(operation.0)
-                        .font(.largeTitle)
+                if let problem = viewModel.currentProblem {
+                    if viewModel.isShowingAnswer {
+                        VStack {
+                            OperationDisplayView(problem: problem)
+                            Text(String(problem.answer))
+                                .font(.largeTitle)
+                                .foregroundColor(Int(viewModel.userAnswer) == problem.answer ? .green : .red)
+                        }
+                    } else {
+                        OperationDisplayView(problem: problem)
+                    }
                 }
 
-                TextField("Respuesta", text: $viewModel.userAnswer)
-                    .keyboardType(.numberPad)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 100)
+                if viewModel.isShowingAnswer {
+                    Button("Continuar") {
+                        viewModel.nextOperation()
+                    }
+                    .padding()
+                } else {
+                    TextField("Respuesta", text: $viewModel.userAnswer)
+                        .keyboardType(.numberPad)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 100)
 
-                Button("Enviar") {
-                    viewModel.submitAnswer()
+                    Button("Enviar") {
+                        viewModel.submitAnswer()
+                    }
+                    .disabled(viewModel.userAnswer.isEmpty)
                 }
-                .disabled(viewModel.userAnswer.isEmpty)
             }
         }
         .navigationTitle("Matemáticas")
