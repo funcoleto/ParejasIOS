@@ -27,11 +27,11 @@ class GameViewModel: ObservableObject {
     
     // Función clave 2: Reinicia o inicia el juego.
     private func numberOfCardsToGenerate() -> Int {
-        // Usamos una extensión de SwiftUI para determinar el tipo de dispositivo
         let isPad = UIDevice.current.userInterfaceIdiom == .pad
+        let deviceMaxPairs = isPad ? 24 : 15 // Límite máximo según el dispositivo
         
-        // iPad: hasta 40 cartas (20 pares). iPhone: hasta 20 cartas (10 pares).
-        let maxPairs = settings.numberOfPairs
+        // El número de parejas será el menor entre el ajuste y el máximo del dispositivo.
+        let maxPairs = min(settings.numberOfPairs, deviceMaxPairs)
         
         // Asegúrate de que no pides más contenido del disponible
         let availableContents = currentMode.initialUniqueContents().count

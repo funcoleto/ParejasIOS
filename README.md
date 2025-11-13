@@ -14,7 +14,7 @@ Este es un clásico juego de encontrar parejas para iOS, desarrollado con SwiftU
 
 ## Personalización
 
-- **Número de Parejas:** Puedes elegir el número de parejas de cartas con las que quieres jugar, desde 2 hasta 20.
+- **Número de Parejas:** Puedes elegir el número de parejas de cartas con las que quieres jugar. El límite es de 15 parejas en iPhone y 24 parejas en iPad para optimizar la experiencia en cada dispositivo.
 - **Mostrar Cartas Emparejadas:** Puedes elegir si las cartas emparejadas desaparecen de la pantalla o se quedan visibles.
 - **Música de Fondo:** Se ha añadido música de fondo para ambientar el juego. Puedes activarla o desactivarla desde el menú de opciones.
 

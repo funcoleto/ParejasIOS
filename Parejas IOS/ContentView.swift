@@ -105,7 +105,7 @@ struct OptionsView: View {
     var body: some View {
         Form {
             Section(header: Text("Configuración del Juego")) {
-                Stepper(value: $settings.numberOfPairs, in: 2...20) {
+                Stepper(value: $settings.numberOfPairs, in: 2...24) {
                     Text("Número de Parejas: \(settings.numberOfPairs)")
                 }
 
