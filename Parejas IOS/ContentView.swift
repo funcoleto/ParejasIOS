@@ -10,6 +10,7 @@ import SwiftUI
 struct ContentView: View {
     @StateObject var rankingManager = RankingManager()
     @StateObject var settingsManager = SettingsManager()
+    @EnvironmentObject var audioManager: AudioManager
 
     var body: some View {
         NavigationView {
@@ -55,6 +56,18 @@ struct ContentView: View {
             .padding()
             .navigationTitle("Menú Principal")
         }
+        .onAppear {
+            if settingsManager.isMusicEnabled {
+                audioManager.play()
+            }
+        }
+        .onChange(of: settingsManager.isMusicEnabled) { isEnabled in
+            if isEnabled {
+                audioManager.play()
+            } else {
+                audioManager.pause()
+            }
+        }
     }
 }
 
@@ -73,9 +86,16 @@ class SettingsManager: ObservableObject {
         }
     }
 
+    @Published var isMusicEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(isMusicEnabled, forKey: "isMusicEnabled")
+        }
+    }
+
     init() {
         self.numberOfPairs = UserDefaults.standard.object(forKey: "numberOfPairs") as? Int ?? 10
         self.showMatchedCards = UserDefaults.standard.object(forKey: "showMatchedCards") as? Bool ?? false
+        self.isMusicEnabled = UserDefaults.standard.object(forKey: "isMusicEnabled") as? Bool ?? true
     }
 }
 
@@ -91,6 +111,10 @@ struct OptionsView: View {
 
                 Toggle(isOn: $settings.showMatchedCards) {
                     Text("Mostrar Cartas Emparejadas")
+                }
+
+                Toggle(isOn: $settings.isMusicEnabled) {
+                    Text("Música de Fondo")
                 }
             }
         }
