@@ -22,6 +22,8 @@
 		7A0E79A42EC5E4870069E4B2 /* RankingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A0E79982EC5E4860069E4B2 /* RankingView.swift */; };
 		7A0E79A52EC5E4870069E4B2 /* Score.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A0E79992EC5E4860069E4B2 /* Score.swift */; };
 		7A0E79AB2EC5E85E0069E4B2 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A0E79AA2EC5E85E0069E4B2 /* ContentView.swift */; };
+		7AAEC4292EC76D5D00F6D042 /* acierto.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 7AAEC4272EC76D5C00F6D042 /* acierto.mp3 */; };
+		7AAEC42A2EC76D5D00F6D042 /* error.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 7AAEC4282EC76D5D00F6D042 /* error.mp3 */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -42,6 +44,8 @@
 		7A0E79992EC5E4860069E4B2 /* Score.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Score.swift; sourceTree = "<group>"; };
 		7A0E79AA2EC5E85E0069E4B2 /* ContentView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		7A0E79AC2EC5E9420069E4B2 /* Parejas IOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Parejas IOS.entitlements"; sourceTree = "<group>"; };
+		7AAEC4272EC76D5C00F6D042 /* acierto.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = acierto.mp3; sourceTree = "<group>"; };
+		7AAEC4282EC76D5D00F6D042 /* error.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = error.mp3; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -82,6 +86,8 @@
 				7A0E798F2EC5E47F0069E4B2 /* GameMode.swift */,
 				7A0E798E2EC5E47F0069E4B2 /* GameOverView.swift */,
 				7A0E79922EC5E4810069E4B2 /* GameView.swift */,
+				7AAEC4272EC76D5C00F6D042 /* acierto.mp3 */,
+				7AAEC4282EC76D5D00F6D042 /* error.mp3 */,
 				7A0E79952EC5E4830069E4B2 /* GameViewModel.swift */,
 				7A0E79972EC5E4850069E4B2 /* pajaros.mp3 */,
 				7A0E79962EC5E4840069E4B2 /* RankingManager.swift */,
@@ -160,6 +166,8 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				7AAEC4292EC76D5D00F6D042 /* acierto.mp3 in Resources */,
+				7AAEC42A2EC76D5D00F6D042 /* error.mp3 in Resources */,
 				7A0E79882EC5E4230069E4B2 /* Preview Assets.xcassets in Resources */,
 				7A0E79A32EC5E4870069E4B2 /* pajaros.mp3 in Resources */,
 				7A0E79852EC5E4230069E4B2 /* Assets.xcassets in Resources */,
