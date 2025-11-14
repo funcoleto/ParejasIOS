@@ -12,6 +12,8 @@ struct CardView: View {
             switch card.mode {
             case .matematicas:
                 EmptyView()
+            case .puzzle:
+                EmptyView()
             case .color:
                 // AHORA USAMOS LA FUNCIÓN DE EXTENSIÓN
                 Color.from(colorName: card.content)
