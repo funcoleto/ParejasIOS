@@ -33,6 +33,8 @@ enum GameMode: String, CaseIterable, Codable {
             return zip(shapes, colors).map { "\($0.0)|\($0.1)" }
         case .matematicas:
             return []
+        case .puzzle:
+            return []
         }
     }
 }

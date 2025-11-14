@@ -1,13 +1,255 @@
 // ContentView.swift
 import SwiftUI
-// Si GameViewModel, GameView, o GameMode están en un módulo o archivo separado,
-// generalmente no necesitas importaciones adicionales aquí,
-// pero asegúrate de que GameView, GameViewModel, y GameMode sean accesibles.
+import PhotosUI
+
+// --- Componentes del Juego de Puzzle ---
+
+/// Una vista para configurar el juego de puzzle.
+/// Permite al usuario seleccionar una imagen de su galería y elegir el tamaño de la cuadrícula.
+struct PuzzleSetupView: View {
+    @State private var selectedImage: UIImage?
+    @State private var showingImagePicker = false
+    @State private var gridSize = 3 // Default: 3x3
+
+    var body: some View {
+        VStack(spacing: 30) {
+            Text("Modo Puzzle")
+                .font(.largeTitle).bold()
+
+            // Selector de imagen
+            VStack {
+                if let image = selectedImage {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxHeight: 300)
+                        .cornerRadius(10)
+                } else {
+                    Rectangle()
+                        .fill(Color.gray.opacity(0.2))
+                        .frame(height: 200)
+                        .cornerRadius(10)
+                        .overlay(Text("Selecciona una imagen").foregroundColor(.gray))
+                }
+
+                Button("Elegir foto de la galería") {
+                    showingImagePicker = true
+                }
+                .padding()
+            }
+
+            // Selector de dificultad
+            Stepper("Tamaño de la cuadrícula: \(gridSize)x\(gridSize)", value: $gridSize, in: 3...10)
+                .padding(.horizontal)
+
+            // Botón para empezar a jugar
+            NavigationLink(destination: PuzzleGameView(viewModel: PuzzleViewModel(image: selectedImage!, gridSize: gridSize))) {
+                Text("¡Empezar a Jugar!")
+                    .font(.title2).bold()
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .background(selectedImage == nil ? Color.gray : Color.orange)
+                    .foregroundColor(.white)
+                    .cornerRadius(10)
+            }
+            .disabled(selectedImage == nil)
+
+            Spacer()
+        }
+        .padding()
+        .navigationTitle("Configurar Puzzle")
+        .sheet(isPresented: $showingImagePicker) {
+            ImagePicker(selectedImage: $selectedImage)
+        }
+    }
+}
+
+/// Representa una única pieza del puzzle.
+struct PuzzlePiece: Identifiable, Equatable {
+    let id = UUID()
+    /// La imagen recortada para esta pieza.
+    let image: UIImage
+    /// El índice original de la pieza en la cuadrícula, para saber si está en la posición correcta.
+    let originalIndex: Int
+}
+
+/// Gestiona la lógica del juego de puzzle.
+class PuzzleViewModel: ObservableObject {
+    /// Las piezas que aún no se han colocado en el tablero.
+    @Published var pieces: [PuzzlePiece] = []
+    @Published var board: [PuzzlePiece?]
+    @Published var isSolved: Bool = false
+
+    let gridSize: Int
+
+    init(image: UIImage, gridSize: Int) {
+        self.gridSize = gridSize
+        self.board = Array(repeating: nil, count: gridSize * gridSize)
+        self.pieces = self.sliceImage(image: image, gridSize: gridSize)
+    }
+
+    private func sliceImage(image: UIImage, gridSize: Int) -> [PuzzlePiece] {
+        guard let cgImage = image.cgImage else { return [] }
+
+        let pieceWidth = CGFloat(cgImage.width) / CGFloat(gridSize)
+        let pieceHeight = CGFloat(cgImage.height) / CGFloat(gridSize)
+        var slicedPieces: [PuzzlePiece] = []
+
+        for y in 0..<gridSize {
+            for x in 0..<gridSize {
+                let rect = CGRect(x: CGFloat(x) * pieceWidth, y: CGFloat(y) * pieceHeight, width: pieceWidth, height: pieceHeight)
+                if let slicedCGImage = cgImage.cropping(to: rect) {
+                    let uiImage = UIImage(cgImage: slicedCGImage, scale: image.scale, orientation: image.imageOrientation)
+                    let piece = PuzzlePiece(image: uiImage, originalIndex: y * gridSize + x)
+                    slicedPieces.append(piece)
+                }
+            }
+        }
+        return slicedPieces.shuffled()
+    }
+
+    func placePiece(_ piece: PuzzlePiece, at index: Int) {
+        if board[index] == nil {
+            board[index] = piece
+            pieces.removeAll { $0.id == piece.id }
+            checkIfSolved()
+        }
+    }
+
+    private func checkIfSolved() {
+        let isBoardFull = board.allSatisfy { $0 != nil }
+        if isBoardFull {
+            for (index, piece) in board.enumerated() {
+                if piece?.originalIndex != index {
+                    isSolved = false
+                    return
+                }
+            }
+            isSolved = true
+        }
+    }
+}
+
+/// La vista principal del juego de puzzle, que muestra el tablero y las piezas arrastrables.
+struct PuzzleGameView: View {
+    @StateObject var viewModel: PuzzleViewModel
+
+    var body: some View {
+        let columns = Array(repeating: GridItem(.flexible()), count: viewModel.gridSize)
+
+        VStack {
+            if viewModel.isSolved {
+                Text("¡Puzzle Resuelto!")
+                    .font(.largeTitle)
+                    .foregroundColor(.green)
+                    .padding()
+            } else {
+                Text("Completa el Puzzle")
+                    .font(.title)
+                    .padding()
+            }
+
+            LazyVGrid(columns: columns, spacing: 2) {
+                ForEach(0..<viewModel.board.count, id: \.self) { index in
+                    if let piece = viewModel.board[index] {
+                        Image(uiImage: piece.image)
+                            .resizable()
+                            .aspectRatio(1, contentMode: .fit)
+                    } else {
+                        Rectangle()
+                            .fill(Color.gray.opacity(0.3))
+                            .aspectRatio(1, contentMode: .fit)
+                            .onDrop(of: [.text], isTargeted: nil) { providers, _ in
+                                handleDrop(providers: providers, index: index)
+                            }
+                    }
+                }
+            }
+            .padding()
+
+            Spacer()
+
+            if !viewModel.pieces.isEmpty && !viewModel.isSolved {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack {
+                        ForEach(viewModel.pieces) { piece in
+                            Image(uiImage: piece.image)
+                                .resizable()
+                                .frame(width: 80, height: 80)
+                                .cornerRadius(5)
+                                .onDrag { NSItemProvider(object: piece.id.uuidString as NSString) }
+                        }
+                    }
+                    .padding()
+                }
+            }
+        }
+        .navigationTitle("Puzzle")
+    }
+
+    private func handleDrop(providers: [NSItemProvider], index: Int) -> Bool {
+        guard let provider = providers.first else { return false }
+
+        provider.loadItem(forTypeIdentifier: "public.text", options: nil) { (data, error) in
+            guard let data = data as? Data, let pieceIdString = String(data: data, encoding: .utf8) else { return }
+
+            DispatchQueue.main.async {
+                if let pieceToMove = viewModel.pieces.first(where: { $0.id.uuidString == pieceIdString }) {
+                    viewModel.placePiece(pieceToMove, at: index)
+                }
+            }
+        }
+        return true
+    }
+}
+
+
+// Helper para el selector de imágenes de UIKit
+struct ImagePicker: UIViewControllerRepresentable {
+    @Binding var selectedImage: UIImage?
+
+    func makeUIViewController(context: Context) -> PHPickerViewController {
+        var config = PHPickerConfiguration()
+        config.filter = .images
+        let picker = PHPickerViewController(configuration: config)
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: PHPickerViewController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+
+    class Coordinator: NSObject, PHPickerViewControllerDelegate {
+        let parent: ImagePicker
+
+        init(_ parent: ImagePicker) {
+            self.parent = parent
+        }
+
+        func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+            picker.dismiss(animated: true)
+            guard let provider = results.first?.itemProvider else { return }
+
+            if provider.canLoadObject(ofClass: UIImage.self) {
+                provider.loadObject(ofClass: UIImage.self) { image, _ in
+                    self.parent.selectedImage = image as? UIImage
+                }
+            }
+        }
+    }
+}
 
 
 
 // ContentView.swift
+
+/// La vista principal de la aplicación que actúa como menú principal.
+/// Desde aquí, el usuario puede navegar a los diferentes modos de juego, ver el ranking y acceder a las opciones.
 struct ContentView: View {
+    /// Gestiona el ranking de puntuaciones.
     @StateObject var rankingManager = RankingManager()
     @StateObject var settingsManager = SettingsManager()
     @EnvironmentObject var audioManager: AudioManager
@@ -17,11 +259,13 @@ struct ContentView: View {
     var body: some View {
         NavigationView {
             VStack(spacing: 20) {
+                Spacer()
+
                 Text("Juego de Parejas 🧠")
                     .font(.largeTitle).bold()
+                    .padding(.bottom, 40)
                 
-                Divider()
-                
+                // Botones de modo de juego
                 ForEach(GameMode.allCases, id: \.self) { mode in
                     if mode == .matematicas {
                         Button(action: {
@@ -30,7 +274,7 @@ struct ContentView: View {
                         }) {
                             Text("Modo \(mode.rawValue)")
                                 .font(.title2)
-                                .frame(maxWidth: .infinity)
+                                .frame(maxWidth: 300)
                                 .padding()
                                 .background(Color.green)
                                 .foregroundColor(.white)
@@ -38,40 +282,55 @@ struct ContentView: View {
                         }
                     } else {
                         NavigationLink(destination:
-                            // Envuelve el destino en una ZStack. Esto es un truco conocido de SwiftUI.
                             ZStack {
                                 GameView(viewModel: GameViewModel(mode: mode, settings: settingsManager), rankingManager: rankingManager)
                             }
                         ) {
                             Text("Modo \(mode.rawValue)")
                                 .font(.title2)
-                                .frame(maxWidth: .infinity)
+                                .frame(maxWidth: 300)
                                 .padding()
                                 .background(Color.blue)
+                                .foregroundColor(.white)
+                                .cornerRadius(10)
+                        }
+                    } else if mode == .puzzle {
+                        // Botón para el nuevo modo Puzzle
+                        NavigationLink(destination: PuzzleSetupView()) {
+                            Text("Modo \(mode.rawValue)")
+                                .font(.title2)
+                                .frame(maxWidth: 300)
+                                .padding()
+                                .background(Color.orange)
                                 .foregroundColor(.white)
                                 .cornerRadius(10)
                         }
                     }
                 }
                 
-                Divider()
+                Spacer()
                 
-                NavigationLink(destination: RankingView(rankingManager: rankingManager)) {
-                    Text("🏆 Ver Top 10 Ranking")
-                        .font(.title2).bold()
-                        .padding()
-                        .foregroundColor(.blue)
-                }
+                // Botones de Ranking y Opciones
+                HStack(spacing: 20) {
+                    NavigationLink(destination: RankingView(rankingManager: rankingManager)) {
+                        Text("🏆 Ranking")
+                            .font(.title3).bold()
+                            .padding()
+                            .foregroundColor(.blue)
+                    }
 
-                NavigationLink(destination: OptionsView(settings: settingsManager)) {
-                    Text("⚙️ Opciones")
-                        .font(.title2).bold()
-                        .padding()
-                        .foregroundColor(.blue)
+                    NavigationLink(destination: OptionsView(settings: settingsManager)) {
+                        Text("⚙️ Opciones")
+                            .font(.title3).bold()
+                            .padding()
+                            .foregroundColor(.blue)
+                    }
                 }
+                .padding(.bottom)
             }
             .padding()
             .navigationTitle("Menú Principal")
+            .navigationBarTitleDisplayMode(.inline)
         }
         .onAppear {
             if settingsManager.isMusicEnabled {
@@ -86,7 +345,7 @@ struct ContentView: View {
             }
         }
         .sheet(isPresented: $showingOperationSelection) {
-            OperationSelectionView(settings: settingsManager)
+            OperationSelectionView(settings: settingsManager, rankingManager: rankingManager)
         }
     }
 }
@@ -217,6 +476,8 @@ struct MathProblem {
 // Vista para seleccionar las operaciones
 struct OperationSelectionView: View {
     @ObservedObject var settings: SettingsManager
+    @ObservedObject var rankingManager: RankingManager
+    @EnvironmentObject var audioManager: AudioManager
     @Environment(\.presentationMode) var presentationMode
     @State private var selectedOperations = Set<OperationType>()
 
@@ -239,7 +500,7 @@ struct OperationSelectionView: View {
                 }
 
                 Section {
-                    NavigationLink(destination: MathGameView(viewModel: MathViewModel(settings: settings, operations: selectedOperations))) {
+                    NavigationLink(destination: MathGameView(viewModel: MathViewModel(settings: settings, operations: selectedOperations, audioManager: audioManager), rankingManager: rankingManager)) {
                         Text("¡A Jugar!")
                     }
                     .disabled(selectedOperations.isEmpty)
@@ -268,11 +529,13 @@ class MathViewModel: ObservableObject {
 
     let settings: SettingsManager
     private let operations: [OperationType]
+    private let audioManager: AudioManager
 
-    init(settings: SettingsManager, operations: Set<OperationType>) {
+    init(settings: SettingsManager, operations: Set<OperationType>, audioManager: AudioManager) {
         self.settings = settings
         self.operations = Array(operations)
         self.remainingOperations = settings.numberOfOperations
+        self.audioManager = audioManager
         generateNewOperation()
     }
 
@@ -308,6 +571,9 @@ class MathViewModel: ObservableObject {
 
         if Int(userAnswer) == correctAnswer {
             score += 1
+            audioManager.playSoundEffect(named: "acierto")
+        } else {
+            audioManager.playSoundEffect(named: "fallo")
         }
         isShowingAnswer = true
     }
@@ -328,6 +594,8 @@ class MathViewModel: ObservableObject {
 // Vista para el juego de matemáticas
 struct MathGameView: View {
     @ObservedObject var viewModel: MathViewModel
+    @ObservedObject var rankingManager: RankingManager
+    @EnvironmentObject var audioManager: AudioManager
     @Environment(\.presentationMode) var presentationMode
 
     var body: some View {
@@ -377,5 +645,17 @@ struct MathGameView: View {
             }
         }
         .navigationTitle("Matemáticas")
+        .onChange(of: viewModel.isGameOver) { isGameOver in
+            if isGameOver {
+                let newScore = Score(
+                    playerName: "Jugador", // Nombre de jugador temporal
+                    timeInSeconds: 0, // No aplica para este modo
+                    mode: .matematicas,
+                    numberOfPairs: 0, // No aplica
+                    mathScore: viewModel.score
+                )
+                rankingManager.saveScore(newScore: newScore)
+            }
+        }
     }
 }

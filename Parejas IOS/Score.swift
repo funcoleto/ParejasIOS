@@ -6,7 +6,8 @@ struct Score: Identifiable, Codable, Equatable {
     var playerName: String
     var timeInSeconds: Double
     var mode: GameMode
-    var numberOfPairs: Int // Nueva propiedad
+    var numberOfPairs: Int
+    var mathScore: Int? // Puntuación para el modo matemáticas
     var date = Date()
     
     // Formatea el tiempo para visualización (ej: 01:30.5)
