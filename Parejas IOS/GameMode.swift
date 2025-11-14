@@ -7,7 +7,8 @@ enum GameMode: String, CaseIterable, Codable {
     case colorAndLetter = "Colores y Letras"
     case shapeAndColor = "Figuras y Colores" // Hasta 40
     case matematicas = "Matemáticas"
-    
+    case puzzle = "Puzzle"
+
     // Función clave: Genera el conjunto de elementos únicos para el modo.
     func initialUniqueContents() -> [String] {
         switch self {
