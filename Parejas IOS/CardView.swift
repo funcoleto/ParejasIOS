@@ -12,6 +12,8 @@ struct CardView: View {
             switch card.mode {
             case .matematicas:
                 EmptyView()
+            case .puzzle:
+                EmptyView()
             case .color:
                 // AHORA USAMOS LA FUNCIÓN DE EXTENSIÓN
                 Color.from(colorName: card.content)
@@ -69,8 +71,6 @@ struct CardView: View {
                             .aspectRatio(contentMode: .fit)
                             .foregroundColor(dynamicColor) // Aplicar el color dinámico
                             .padding(10) // Padding interno para que no toque los bordes de la carta
-            case .puzzle:
-                <#code#>
             }
         }
     }
