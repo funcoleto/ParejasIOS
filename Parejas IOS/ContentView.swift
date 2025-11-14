@@ -242,6 +242,45 @@ struct ImagePicker: UIViewControllerRepresentable {
     }
 }
 
+/// Un botón personalizado para el menú principal que navega al modo de juego correspondiente.
+struct GameModeButton: View {
+    let mode: GameMode
+    let settingsManager: SettingsManager
+    let rankingManager: RankingManager
+    @Binding var showingOperationSelection: Bool
+    @Binding var selectedGameMode: GameMode?
+
+    var body: some View {
+        switch mode {
+        case .matematicas:
+            Button(action: {
+                selectedGameMode = mode
+                showingOperationSelection = true
+            }) {
+                buttonContent(text: "Modo \(mode.rawValue)", color: .green)
+            }
+        case .puzzle:
+            NavigationLink(destination: PuzzleSetupView()) {
+                buttonContent(text: "Modo \(mode.rawValue)", color: .orange)
+            }
+        default:
+            NavigationLink(destination: GameView(viewModel: GameViewModel(mode: mode, settings: settingsManager), rankingManager: rankingManager)) {
+                buttonContent(text: "Modo \(mode.rawValue)", color: .blue)
+            }
+        }
+    }
+
+    /// Crea el contenido visual del botón.
+    private func buttonContent(text: String, color: Color) -> some View {
+        Text(text)
+            .font(.title2)
+            .frame(maxWidth: 300)
+            .padding()
+            .background(color)
+            .foregroundColor(.white)
+            .cornerRadius(10)
+    }
+}
 
 
 // ContentView.swift
@@ -267,45 +306,11 @@ struct ContentView: View {
                 
                 // Botones de modo de juego
                 ForEach(GameMode.allCases, id: \.self) { mode in
-                    if mode == .matematicas {
-                        Button(action: {
-                            selectedGameMode = mode
-                            showingOperationSelection = true
-                        }) {
-                            Text("Modo \(mode.rawValue)")
-                                .font(.title2)
-                                .frame(maxWidth: 300)
-                                .padding()
-                                .background(Color.green)
-                                .foregroundColor(.white)
-                                .cornerRadius(10)
-                        }
-                    } else {
-                        NavigationLink(destination:
-                            ZStack {
-                                GameView(viewModel: GameViewModel(mode: mode, settings: settingsManager), rankingManager: rankingManager)
-                            }
-                        ) {
-                            Text("Modo \(mode.rawValue)")
-                                .font(.title2)
-                                .frame(maxWidth: 300)
-                                .padding()
-                                .background(Color.blue)
-                                .foregroundColor(.white)
-                                .cornerRadius(10)
-                        }
-                    } else if mode == .puzzle {
-                        // Botón para el nuevo modo Puzzle
-                        NavigationLink(destination: PuzzleSetupView()) {
-                            Text("Modo \(mode.rawValue)")
-                                .font(.title2)
-                                .frame(maxWidth: 300)
-                                .padding()
-                                .background(Color.orange)
-                                .foregroundColor(.white)
-                                .cornerRadius(10)
-                        }
-                    }
+                    GameModeButton(mode: mode,
+                                   settingsManager: settingsManager,
+                                   rankingManager: rankingManager,
+                                   showingOperationSelection: $showingOperationSelection,
+                                   selectedGameMode: $selectedGameMode)
                 }
                 
                 Spacer()
