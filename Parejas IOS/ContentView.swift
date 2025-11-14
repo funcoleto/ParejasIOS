@@ -2,38 +2,6 @@
 import SwiftUI
 import PhotosUI
 
-// Define los modos y el contenido para las cartas
-enum GameMode: String, CaseIterable, Codable {
-    case color = "Colores"
-    case letter = "Letras"
-    case colorAndLetter = "Colores y Letras"
-    case shapeAndColor = "Figuras y Colores"
-    case matematicas = "Matemáticas"
-    case puzzle = "Puzzle"
-
-    // Función clave: Genera el conjunto de elementos únicos para el modo.
-    func initialUniqueContents() -> [String] {
-        switch self {
-        case .color:
-            let colors = ["Rojo", "Azul", "Verde", "Amarillo", "Naranja", "Morado", "Rosa", "Cian", "Lima", "Marrón", "Gris", "Negro", "Blanco", "Dorado", "Plata", "Violeta", "Turquesa", "Coral", "Oliva", "Beige", "Índigo", "Magenta", "Salmón", "Acero"]
-            return colors
-        case .letter:
-            let alphabet = "ABCDEFGHIJKLMNÑOPQRSTUVWXYZ".shuffled()
-            return alphabet.map { "\($0.uppercased())|\($0.lowercased())" }
-        case .colorAndLetter:
-            let colors = ["Rojo", "Azul", "Verde", "Amarillo", "Naranja", "Morado", "Rosa", "Cian", "Lima", "Marrón", "Gris", "Negro", "Blanco", "Dorado", "Plata", "Violeta", "Turquesa", "Coral", "Oliva", "Beige", "Índigo", "Magenta", "Salmón", "Acero"]
-            let letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".shuffled()
-            return zip(letters, colors).map { "\($0.0.uppercased())|\($0.0.lowercased())|\($0.1)" }
-        case .shapeAndColor:
-            let shapes = ["star.fill", "heart.fill", "circle.fill", "square.fill", "triangle.fill", "diamond.fill", "hexagon.fill", "octagon.fill", "shield.fill", "flag.fill", "bell.fill", "tag.fill", "bolt.fill", "camera.fill", "message.fill", "phone.fill", "sun.max.fill", "moon.fill", "cloud.fill", "flame.fill", "leaf.fill", "airplane", "car.fill", "bus.fill"]
-            let colors = ["Rojo", "Azul", "Verde", "Amarillo", "Naranja", "Morado", "Rosa", "Cian", "Lima", "Marrón", "Gris", "Negro", "Blanco", "Dorado", "Plata", "Violeta", "Turquesa", "Coral", "Oliva", "Beige", "Índigo", "Magenta", "Salmón", "Acero"]
-            return zip(shapes, colors).map { "\($0.0)|\($0.1)" }
-        case .matematicas, .puzzle:
-            return []
-        }
-    }
-}
-
 // --- Componentes del Juego de Puzzle ---
 
 /// Una vista para configurar el juego de puzzle.
@@ -48,7 +16,6 @@ struct PuzzleSetupView: View {
             Text("Modo Puzzle")
                 .font(.largeTitle).bold()
 
-            // Selector de imagen
             VStack {
                 if let image = selectedImage {
                     Image(uiImage: image)
@@ -70,11 +37,9 @@ struct PuzzleSetupView: View {
                 .padding()
             }
 
-            // Selector de dificultad
             Stepper("Tamaño de la cuadrícula: \(gridSize)x\(gridSize)", value: $gridSize, in: 3...10)
                 .padding(.horizontal)
 
-            // Botón para empezar a jugar
             NavigationLink(destination: PuzzleGameView(viewModel: PuzzleViewModel(image: selectedImage!, gridSize: gridSize))) {
                 Text("¡Empezar a Jugar!")
                     .font(.title2).bold()
@@ -99,15 +64,12 @@ struct PuzzleSetupView: View {
 /// Representa una única pieza del puzzle.
 struct PuzzlePiece: Identifiable, Equatable {
     let id = UUID()
-    /// La imagen recortada para esta pieza.
     let image: UIImage
-    /// El índice original de la pieza en la cuadrícula, para saber si está en la posición correcta.
     let originalIndex: Int
 }
 
 /// Gestiona la lógica del juego de puzzle.
 class PuzzleViewModel: ObservableObject {
-    /// Las piezas que aún no se han colocado en el tablero.
     @Published var pieces: [PuzzlePiece] = []
     @Published var board: [PuzzlePiece?]
     @Published var isSolved: Bool = false
@@ -235,8 +197,7 @@ struct PuzzleGameView: View {
     }
 }
 
-
-// Helper para el selector de imágenes de UIKit
+/// Helper para el selector de imágenes de UIKit
 struct ImagePicker: UIViewControllerRepresentable {
     @Binding var selectedImage: UIImage?
 
@@ -274,45 +235,6 @@ struct ImagePicker: UIViewControllerRepresentable {
     }
 }
 
-/// Un botón personalizado para el menú principal que navega al modo de juego correspondiente.
-struct GameModeButton: View {
-    let mode: GameMode
-    let settingsManager: SettingsManager
-    let rankingManager: RankingManager
-    @Binding var showingOperationSelection: Bool
-    @Binding var selectedGameMode: GameMode?
-
-    var body: some View {
-        switch mode {
-        case .matematicas:
-            Button(action: {
-                selectedGameMode = mode
-                showingOperationSelection = true
-            }) {
-                buttonContent(text: "Modo \(mode.rawValue)", color: .green)
-            }
-        case .puzzle:
-            NavigationLink(destination: PuzzleSetupView()) {
-                buttonContent(text: "Modo \(mode.rawValue)", color: .orange)
-            }
-        default:
-            NavigationLink(destination: GameView(viewModel: GameViewModel(mode: mode, settings: settingsManager), rankingManager: rankingManager)) {
-                buttonContent(text: "Modo \(mode.rawValue)", color: .blue)
-            }
-        }
-    }
-
-    /// Crea el contenido visual del botón.
-    private func buttonContent(text: String, color: Color) -> some View {
-        Text(text)
-            .font(.title2)
-            .frame(maxWidth: 300)
-            .padding()
-            .background(color)
-            .foregroundColor(.white)
-            .cornerRadius(10)
-    }
-}
 
 
 // ContentView.swift
@@ -384,6 +306,46 @@ struct ContentView: View {
         .sheet(isPresented: $showingOperationSelection) {
             OperationSelectionView(settings: settingsManager, rankingManager: rankingManager)
         }
+    }
+}
+
+/// Un botón personalizado para el menú principal que navega al modo de juego correspondiente.
+struct GameModeButton: View {
+    let mode: GameMode
+    let settingsManager: SettingsManager
+    let rankingManager: RankingManager
+    @Binding var showingOperationSelection: Bool
+    @Binding var selectedGameMode: GameMode?
+
+    var body: some View {
+        switch mode {
+        case .matematicas:
+            Button(action: {
+                selectedGameMode = mode
+                showingOperationSelection = true
+            }) {
+                buttonContent(text: "Modo \(mode.rawValue)", color: .green)
+            }
+        case .puzzle:
+            NavigationLink(destination: PuzzleSetupView()) {
+                buttonContent(text: "Modo \(mode.rawValue)", color: .orange)
+            }
+        default:
+            NavigationLink(destination: GameView(viewModel: GameViewModel(mode: mode, settings: settingsManager), rankingManager: rankingManager)) {
+                buttonContent(text: "Modo \(mode.rawValue)", color: .blue)
+            }
+        }
+    }
+
+    /// Crea el contenido visual del botón.
+    private func buttonContent(text: String, color: Color) -> some View {
+        Text(text)
+            .font(.title2)
+            .frame(maxWidth: 300)
+            .padding()
+            .background(color)
+            .foregroundColor(.white)
+            .cornerRadius(10)
     }
 }
 
@@ -632,7 +594,6 @@ class MathViewModel: ObservableObject {
 struct MathGameView: View {
     @ObservedObject var viewModel: MathViewModel
     @ObservedObject var rankingManager: RankingManager
-    @EnvironmentObject var audioManager: AudioManager
     @Environment(\.presentationMode) var presentationMode
 
     var body: some View {
@@ -685,10 +646,10 @@ struct MathGameView: View {
         .onChange(of: viewModel.isGameOver) { isGameOver in
             if isGameOver {
                 let newScore = Score(
-                    playerName: "Jugador", // Nombre de jugador temporal
-                    timeInSeconds: 0, // No aplica para este modo
+                    playerName: "Jugador",
+                    timeInSeconds: 0,
                     mode: .matematicas,
-                    numberOfPairs: 0, // No aplica
+                    numberOfPairs: 0,
                     mathScore: viewModel.score
                 )
                 rankingManager.saveScore(newScore: newScore)
