@@ -128,11 +128,93 @@ struct PuzzleGameOverView: View {
     }
 }
 
+// --- Componentes para la Forma de la Pieza del Puzzle ---
+
+/// Define el tipo de borde de una pieza del puzzle.
+enum EdgeType {
+    case flat, inwards, outwards
+}
+
+/// Una `Shape` que dibuja el contorno de una pieza de puzzle basándose en sus cuatro bordes.
+struct PuzzlePieceShape: Shape {
+    var top: EdgeType
+    var right: EdgeType
+    var bottom: EdgeType
+    var left: EdgeType
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let tabSize = min(rect.width, rect.height) / 3.5 // Controla el tamaño del saliente
+
+        // Puntos de las esquinas del rectángulo
+        let p_tl = CGPoint(x: rect.minX, y: rect.minY)
+        let p_tr = CGPoint(x: rect.maxX, y: rect.minY)
+        let p_br = CGPoint(x: rect.maxX, y: rect.maxY)
+        let p_bl = CGPoint(x: rect.minX, y: rect.maxY)
+
+        // Empezar en la esquina superior izquierda
+        path.move(to: p_tl)
+
+        // Dibujar cada borde en sentido horario
+        drawEdge(path: &path, edgeType: top, from: p_tl, to: p_tr, tabSize: tabSize)
+        drawEdge(path: &path, edgeType: right, from: p_tr, to: p_br, tabSize: tabSize)
+        drawEdge(path: &path, edgeType: bottom, from: p_br, to: p_bl, tabSize: tabSize)
+        drawEdge(path: &path, edgeType: left, from: p_bl, to: p_tl, tabSize: tabSize)
+
+        return path
+    }
+
+    /// Dibuja un único borde (lado) de la pieza del puzzle.
+    /// - Parameters:
+    ///   - path: El `Path` de SwiftUI al que se añadirá el borde.
+    ///   - edgeType: El tipo de borde a dibujar (`flat`, `inwards`, `outwards`).
+    ///   - p1: El punto de inicio del borde.
+    ///   - p2: El punto final del borde.
+    ///   - tabSize: El tamaño del saliente o entrante.
+    private func drawEdge(path: inout Path, edgeType: EdgeType, from p1: CGPoint, to p2: CGPoint, tabSize: CGFloat) {
+        switch edgeType {
+        case .flat:
+            path.addLine(to: p2)
+        case .outwards, .inwards:
+            // Calcular los puntos de la base del saliente (a 1/3 y 2/3 del borde)
+            let p_third_1 = CGPoint(x: p1.x + (p2.x - p1.x) / 3, y: p1.y + (p2.y - p1.y) / 3)
+            let p_third_2 = CGPoint(x: p1.x + (p2.x - p1.x) * 2 / 3, y: p1.y + (p2.y - p1.y) * 2 / 3)
+
+            // Calcular el vector normal (perpendicular) al borde para la dirección del saliente
+            let dx = p2.x - p1.x
+            let dy = p2.y - p1.y
+            let len = sqrt(dx*dx + dy*dy)
+            let nx = dy / len
+            let ny = -dx / len
+
+            // El multiplicador invierte la dirección para los entrantes
+            let multiplier: CGFloat = edgeType == .outwards ? 1 : -1
+            let offset = tabSize * multiplier
+
+            // Los dos puntos de control de la curva de Bezier se desplazan a lo largo de la normal
+            let cp1 = CGPoint(x: p_third_1.x + offset * nx, y: p_third_1.y + offset * ny)
+            let cp2 = CGPoint(x: p_third_2.x + offset * nx, y: p_third_2.y + offset * ny)
+
+            // Dibujar el borde: línea, curva y línea
+            path.addLine(to: p_third_1)
+            path.addCurve(to: p_third_2, control1: cp1, control2: cp2)
+            path.addLine(to: p2)
+        }
+    }
+}
+
+
 /// Representa una única pieza del puzzle.
 struct PuzzlePiece: Identifiable, Equatable {
     let id = UUID()
     let image: UIImage
     let originalIndex: Int
+    let shape: PuzzlePieceShape
+
+    // Equatable conformance
+    static func == (lhs: PuzzlePiece, rhs: PuzzlePiece) -> Bool {
+        lhs.id == rhs.id
+    }
 }
 
 /// Gestiona la lógica del juego de puzzle.
@@ -142,6 +224,9 @@ class PuzzleViewModel: ObservableObject {
     @Published var pieces: [PuzzlePiece] = []
     @Published var board: [PuzzlePiece?]
     @Published var isSolved: Bool = false
+    @Published var elapsedTime: TimeInterval = 0
+
+    private(set) var originalPieces: [PuzzlePiece] = []
     @Published var elapsedTime: TimeInterval = 0
 
     let gridSize: Int
@@ -162,17 +247,62 @@ class PuzzleViewModel: ObservableObject {
         let pieceHeight = CGFloat(cgImage.height) / CGFloat(gridSize)
         var slicedPieces: [PuzzlePiece] = []
 
+        // Generar todas las formas de las piezas primero
+        let shapes = generatePieceShapes()
+
         for y in 0..<gridSize {
             for x in 0..<gridSize {
                 let rect = CGRect(x: CGFloat(x) * pieceWidth, y: CGFloat(y) * pieceHeight, width: pieceWidth, height: pieceHeight)
                 if let slicedCGImage = cgImage.cropping(to: rect) {
                     let uiImage = UIImage(cgImage: slicedCGImage, scale: image.scale, orientation: image.imageOrientation)
-                    let piece = PuzzlePiece(image: uiImage, originalIndex: y * gridSize + x)
+                    let index = y * gridSize + x
+                    let piece = PuzzlePiece(image: uiImage, originalIndex: index, shape: shapes[index])
                     slicedPieces.append(piece)
                 }
             }
         }
+
+        self.originalPieces = slicedPieces
         return slicedPieces.shuffled()
+    }
+
+    /// Genera una cuadrícula de formas de piezas de puzzle que encajan entre sí.
+    private func generatePieceShapes() -> [PuzzlePieceShape] {
+        let gridSize = self.gridSize
+        var shapes: [PuzzlePieceShape] = []
+
+        // Matrices para los bordes horizontales y verticales internos
+        var horizontalEdges = Array(repeating: Array(repeating: EdgeType.flat, count: gridSize), count: gridSize - 1)
+        var verticalEdges = Array(repeating: Array(repeating: EdgeType.flat, count: gridSize - 1), count: gridSize)
+
+        // Asignar aleatoriamente los bordes internos
+        for row in 0..<(gridSize - 1) {
+            for col in 0..<gridSize {
+                horizontalEdges[row][col] = Bool.random() ? .inwards : .outwards
+            }
+        }
+        for row in 0..<gridSize {
+            for col in 0..<(gridSize - 1) {
+                verticalEdges[row][col] = Bool.random() ? .inwards : .outwards
+            }
+        }
+
+        // Crear la forma para cada pieza
+        for row in 0..<gridSize {
+            for col in 0..<gridSize {
+                // El borde superior es el borde inferior de la pieza de arriba, o plano si está en el borde.
+                let top = row == 0 ? .flat : (horizontalEdges[row - 1][col] == .inwards ? .outwards : .inwards)
+                // El borde derecho es plano si está en el borde.
+                let right = col == gridSize - 1 ? .flat : verticalEdges[row][col]
+                // El borde inferior es plano si está en el borde.
+                let bottom = row == gridSize - 1 ? .flat : horizontalEdges[row][col]
+                // El borde izquierdo es el borde derecho de la pieza de la izquierda, o plano si está en el borde.
+                let left = col == 0 ? .flat : (verticalEdges[row][col - 1] == .inwards ? .outwards : .inwards)
+
+                shapes.append(PuzzlePieceShape(top: top, right: right, bottom: bottom, left: left))
+            }
+        }
+        return shapes
     }
 
     func placePiece(_ piece: PuzzlePiece, at index: Int) {
@@ -251,16 +381,21 @@ struct PuzzleGameView: View {
                         Image(uiImage: piece.image)
                             .resizable()
                             .aspectRatio(1, contentMode: .fit)
+                            .clipShape(piece.shape)
                             .onTapGesture {
                                 viewModel.returnPiece(at: index)
                             }
                     } else {
-                        Rectangle()
-                            .fill(Color.gray.opacity(0.3))
-                            .aspectRatio(1, contentMode: .fit)
-                            .onDrop(of: [.text], isTargeted: nil) { providers, _ in
-                                handleDrop(providers: providers, index: index)
-                            }
+                        // Dibujar el contorno de la pieza que falta
+                        if !viewModel.originalPieces.isEmpty {
+                            viewModel.originalPieces[index].shape
+                                .stroke(Color.black.opacity(0.2), lineWidth: 2)
+                                .background(Color.gray.opacity(0.15))
+                                .aspectRatio(1, contentMode: .fit)
+                                .onDrop(of: [.text], isTargeted: nil) { providers, _ in
+                                    handleDrop(providers: providers, index: index)
+                                }
+                        }
                     }
                 }
             }
@@ -275,7 +410,7 @@ struct PuzzleGameView: View {
                             Image(uiImage: piece.image)
                                 .resizable()
                                 .frame(width: 80, height: 80)
-                                .cornerRadius(5)
+                                .clipShape(piece.shape)
                                 .onDrag {
                                     NSItemProvider(object: piece.id.uuidString as NSString)
                                 }
