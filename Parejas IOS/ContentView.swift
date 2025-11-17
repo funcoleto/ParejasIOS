@@ -265,13 +265,10 @@ class PuzzleViewModel: ObservableObject {
 
         let imageWidth = CGFloat(cgImage.width)
         let imageHeight = CGFloat(cgImage.height)
-        let pieceWidth = imageWidth / CGFloat(gridSize)
-        let pieceHeight = imageHeight / CGFloat(gridSize)
+        let pieceSideLength = imageWidth / CGFloat(gridSize) // Asumimos piezas cuadradas
 
         var slicedPieces: [PuzzlePiece] = []
         let shapes = generatePieceShapes()
-
-        // Preparar el contexto gráfico para renderizar las piezas
         let colorSpace = CGColorSpaceCreateDeviceRGB()
         let bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue
 
@@ -280,36 +277,40 @@ class PuzzleViewModel: ObservableObject {
                 let index = y * gridSize + x
                 let shape = shapes[index]
 
-                // Crear el path de la pieza en su propio sistema de coordenadas (origen 0,0)
-                let pieceRect = CGRect(x: 0, y: 0, width: pieceWidth, height: pieceHeight)
-                let path = shape.path(in: pieceRect)
+                // 1. Obtener el path y su bounding box real (que incluye las pestañas)
+                let baseRect = CGRect(x: 0, y: 0, width: pieceSideLength, height: pieceSideLength)
+                let path = shape.path(in: baseRect)
+                let boundingBox = path.cgPath.boundingBoxOfPath
 
-                // Crear un contexto de bitmap para dibujar esta única pieza
+                // 2. Crear un contexto de bitmap del tamaño del bounding box
                 guard let context = CGContext(data: nil,
-                                              width: Int(pieceWidth),
-                                              height: Int(pieceHeight),
+                                              width: Int(boundingBox.width),
+                                              height: Int(boundingBox.height),
                                               bitsPerComponent: 8,
                                               bytesPerRow: 0,
                                               space: colorSpace,
                                               bitmapInfo: bitmapInfo) else { continue }
 
-                // --- FIX: Invertir el sistema de coordenadas de Core Graphics ---
-                // Core Graphics tiene su origen en la parte inferior izquierda, mientras que SwiftUI lo tiene en la parte superior izquierda.
-                // Esta transformación voltea el contexto verticalmente para que coincidan.
+                // 3. Transformar el contexto para que coincida con el sistema de coordenadas de SwiftUI
                 context.scaleBy(x: 1.0, y: -1.0)
-                context.translateBy(x: 0, y: -pieceHeight)
+                context.translateBy(x: 0, y: -boundingBox.height)
 
-                // Mover el origen del contexto para que la sección correcta de la imagen se dibuje
-                context.translateBy(x: -CGFloat(x) * pieceWidth, y: -CGFloat(y) * pieceHeight)
+                // 4. Mover el contexto para que se alinee con la sección correcta de la imagen original
+                let imageTargetX = -CGFloat(x) * pieceSideLength + boundingBox.origin.x
+                let imageTargetY = -CGFloat(y) * pieceSideLength + boundingBox.origin.y
+                context.translateBy(x: imageTargetX, y: imageTargetY)
 
-                // Aplicar el clipping path
-                context.addPath(path.cgPath)
-                context.clip()
+                // 5. Crear una nueva ruta de recorte, movida al origen del contexto (0,0)
+                let transform = CGAffineTransform(translationX: -boundingBox.origin.x, y: -boundingBox.origin.y)
+                if let translatedPath = path.cgPath.copy(using: &transform) {
+                    context.addPath(translatedPath)
+                    context.clip()
+                }
 
-                // Dibujar la imagen completa en el contexto. Solo la parte dentro del path será visible.
+                // 6. Dibujar la imagen completa en el contexto transformado
                 context.draw(cgImage, in: CGRect(x: 0, y: 0, width: imageWidth, height: imageHeight))
 
-                // Extraer la imagen resultante del contexto
+                // 7. Extraer la imagen de la pieza
                 if let slicedCGImage = context.makeImage() {
                     let uiImage = UIImage(cgImage: slicedCGImage, scale: image.scale, orientation: image.imageOrientation)
                     let piece = PuzzlePiece(image: uiImage, originalIndex: index, shape: shape)
