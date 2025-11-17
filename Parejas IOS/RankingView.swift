@@ -22,20 +22,18 @@ struct RankingView: View {
                 
                 // --- Encabezado del Ranking ---
                 HStack {
-                    // Posición: Ancho fijo pequeño
                     Text("Pos").bold().frame(width: 30, alignment: .leading)
-                    
-                    // Nombre: Ancho flexible máximo
                     Text("Nombre").bold()
+                    Spacer()
                     
-                    Spacer() // Empuja el tiempo a la derecha
-                    
-                    // Tiempo: Ancho ligeramente más ancho para MM:SS
-                    Text("Tiempo").bold().frame(width: 60, alignment: .trailing)
-                    // Parejas: Nueva columna
-                    Text("Parejas").bold().frame(width: 70, alignment: .trailing)
+                    if selectedMode == .matematicas {
+                        Text("Aciertos").bold().frame(width: 70, alignment: .trailing)
+                        Text("Fallos").bold().frame(width: 70, alignment: .trailing)
+                    } else {
+                        Text("Tiempo").bold().frame(width: 60, alignment: .trailing)
+                        Text("Parejas").bold().frame(width: 70, alignment: .trailing)
+                    }
                 }
-                // Importante: forzar al HStack a ocupar todo el ancho de la List
                 .frame(maxWidth: .infinity, alignment: .leading)
                 
                 if topScores.isEmpty {
@@ -47,18 +45,19 @@ struct RankingView: View {
                     ForEach(topScores.indices, id: \.self) { index in
                         let score = topScores[index]
                         HStack {
-                            // Posición
                             Text("\(index + 1)").frame(width: 30, alignment: .leading)
-                            
-                            // Nombre
                             Text(score.playerName)
-                            
                             Spacer()
                             
-                            // Tiempo
-                            Text(score.displayTime).frame(width: 60, alignment: .trailing)
-                            // Parejas
-                            Text("\(score.numberOfPairs)").frame(width: 70, alignment: .trailing)
+                            if selectedMode == .matematicas {
+                                let aciertos = score.mathScore ?? 0
+                                let fallos = score.totalItems - aciertos
+                                Text("\(aciertos)").frame(width: 70, alignment: .trailing)
+                                Text("\(fallos)").frame(width: 70, alignment: .trailing)
+                            } else {
+                                Text(score.displayTime).frame(width: 60, alignment: .trailing)
+                                Text("\(score.totalItems)").frame(width: 70, alignment: .trailing)
+                            }
                         }
                     }
                 }
