@@ -263,20 +263,50 @@ class PuzzleViewModel: ObservableObject {
     private func sliceImage(image: UIImage, gridSize: Int) -> [PuzzlePiece] {
         guard let cgImage = image.cgImage else { return [] }
 
-        let pieceWidth = CGFloat(cgImage.width) / CGFloat(gridSize)
-        let pieceHeight = CGFloat(cgImage.height) / CGFloat(gridSize)
-        var slicedPieces: [PuzzlePiece] = []
+        let imageWidth = CGFloat(cgImage.width)
+        let imageHeight = CGFloat(cgImage.height)
+        let pieceWidth = imageWidth / CGFloat(gridSize)
+        let pieceHeight = imageHeight / CGFloat(gridSize)
 
-        // Generar todas las formas de las piezas primero
+        var slicedPieces: [PuzzlePiece] = []
         let shapes = generatePieceShapes()
+
+        // Preparar el contexto gráfico para renderizar las piezas
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        let bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue
 
         for y in 0..<gridSize {
             for x in 0..<gridSize {
-                let rect = CGRect(x: CGFloat(x) * pieceWidth, y: CGFloat(y) * pieceHeight, width: pieceWidth, height: pieceHeight)
-                if let slicedCGImage = cgImage.cropping(to: rect) {
+                let index = y * gridSize + x
+                let shape = shapes[index]
+
+                // Crear el path de la pieza en su propio sistema de coordenadas (origen 0,0)
+                let pieceRect = CGRect(x: 0, y: 0, width: pieceWidth, height: pieceHeight)
+                let path = shape.path(in: pieceRect)
+
+                // Crear un contexto de bitmap para dibujar esta única pieza
+                guard let context = CGContext(data: nil,
+                                              width: Int(pieceWidth),
+                                              height: Int(pieceHeight),
+                                              bitsPerComponent: 8,
+                                              bytesPerRow: 0,
+                                              space: colorSpace,
+                                              bitmapInfo: bitmapInfo) else { continue }
+
+                // Mover el origen del contexto para que la sección correcta de la imagen se dibuje
+                context.translateBy(x: -CGFloat(x) * pieceWidth, y: -CGFloat(y) * pieceHeight)
+
+                // Aplicar el clipping path
+                context.addPath(path)
+                context.clip()
+
+                // Dibujar la imagen completa en el contexto. Solo la parte dentro del path será visible.
+                context.draw(cgImage, in: CGRect(x: 0, y: 0, width: imageWidth, height: imageHeight))
+
+                // Extraer la imagen resultante del contexto
+                if let slicedCGImage = context.makeImage() {
                     let uiImage = UIImage(cgImage: slicedCGImage, scale: image.scale, orientation: image.imageOrientation)
-                    let index = y * gridSize + x
-                    let piece = PuzzlePiece(image: uiImage, originalIndex: index, shape: shapes[index])
+                    let piece = PuzzlePiece(image: uiImage, originalIndex: index, shape: shape)
                     slicedPieces.append(piece)
                 }
             }
@@ -401,7 +431,7 @@ struct PuzzleGameView: View {
                         Image(uiImage: piece.image)
                             .resizable()
                             .aspectRatio(1, contentMode: .fit)
-                            .clipShape(piece.shape)
+                            // .clipShape(piece.shape) // Ya no es necesario, la imagen ya está recortada
                             .onTapGesture {
                                 viewModel.returnPiece(at: index)
                             }
@@ -430,7 +460,7 @@ struct PuzzleGameView: View {
                             Image(uiImage: piece.image)
                                 .resizable()
                                 .frame(width: 80, height: 80)
-                                .clipShape(piece.shape)
+                                // .clipShape(piece.shape) // Ya no es necesario
                                 .onDrag {
                                     NSItemProvider(object: piece.id.uuidString as NSString)
                                 }
