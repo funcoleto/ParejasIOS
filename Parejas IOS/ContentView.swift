@@ -61,25 +61,182 @@ struct PuzzleSetupView: View {
     }
 }
 
+// Vista de fin de juego para el modo puzzle
+struct PuzzleGameOverView: View {
+    @EnvironmentObject var rankingManager: RankingManager
+    let score: TimeInterval
+    let gridSize: Int
+    let onPlayAgain: () -> Void
+    let onMainMenu: () -> Void
+
+    @State private var playerName: String = ""
+    @State private var scoreSaved: Bool = false
+
+    private var gridSizeString: String {
+        "\(gridSize)x\(gridSize)"
+    }
+
+    var body: some View {
+        VStack(spacing: 20) {
+            Text("¡Puzzle Resuelto! 🥳")
+                .font(.largeTitle).bold()
+
+            Text("Tu Tiempo: **\(Score(playerName: "", timeInSeconds: score, mode: .puzzle, totalItems: 0).displayTime)**")
+                .font(.title2)
+
+            Text("Tamaño: **\(gridSizeString)**")
+                .font(.headline)
+
+            if !scoreSaved {
+                TextField("Ingresa tu Nombre", text: $playerName)
+                    .textFieldStyle(.roundedBorder)
+                    .padding(.horizontal, 40)
+                    .multilineTextAlignment(.center)
+
+                Button("Guardar Puntuación") {
+                    guard !playerName.isEmpty else { return }
+                    // Aquí necesitamos una forma de guardar el tamaño de la cuadrícula en el objeto Score.
+                    // Por ahora, lo dejaremos como 0. Lo arreglaremos en el siguiente paso.
+                    let newScore = Score(
+                        playerName: playerName,
+                        timeInSeconds: score,
+                        mode: .puzzle,
+                        totalItems: gridSize * gridSize,
+                        mathScore: nil,
+                        puzzleGridSize: gridSizeString
+                    )
+                    rankingManager.saveScore(newScore: newScore)
+                    scoreSaved = true
+                }
+                .buttonStyle(.borderedProminent)
+            } else {
+                Text("¡Puntuación guardada con éxito!")
+                    .foregroundColor(.green)
+            }
+
+            Button("Jugar de Nuevo") {
+                onPlayAgain()
+            }
+            .buttonStyle(.bordered)
+
+            Button("Volver al Menú") {
+                onMainMenu()
+            }
+            .buttonStyle(.bordered)
+        }
+        .padding(40)
+    }
+}
+
+// --- Componentes para la Forma de la Pieza del Puzzle ---
+
+/// Define el tipo de borde de una pieza del puzzle.
+enum EdgeType {
+    case flat, inwards, outwards
+}
+
+/// Una `Shape` que dibuja el contorno de una pieza de puzzle basándose en sus cuatro bordes.
+struct PuzzlePieceShape: Shape {
+    var top: EdgeType
+    var right: EdgeType
+    var bottom: EdgeType
+    var left: EdgeType
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let tabSize = min(rect.width, rect.height) / 3.5 // Controla el tamaño del saliente
+
+        // Puntos de las esquinas del rectángulo
+        let p_tl = CGPoint(x: rect.minX, y: rect.minY)
+        let p_tr = CGPoint(x: rect.maxX, y: rect.minY)
+        let p_br = CGPoint(x: rect.maxX, y: rect.maxY)
+        let p_bl = CGPoint(x: rect.minX, y: rect.maxY)
+
+        // Empezar en la esquina superior izquierda
+        path.move(to: p_tl)
+
+        // Dibujar cada borde en sentido horario
+        drawEdge(path: &path, edgeType: top, from: p_tl, to: p_tr, tabSize: tabSize)
+        drawEdge(path: &path, edgeType: right, from: p_tr, to: p_br, tabSize: tabSize)
+        drawEdge(path: &path, edgeType: bottom, from: p_br, to: p_bl, tabSize: tabSize)
+        drawEdge(path: &path, edgeType: left, from: p_bl, to: p_tl, tabSize: tabSize)
+
+        return path
+    }
+
+    /// Dibuja un único borde (lado) de la pieza del puzzle.
+    /// - Parameters:
+    ///   - path: El `Path` de SwiftUI al que se añadirá el borde.
+    ///   - edgeType: El tipo de borde a dibujar (`flat`, `inwards`, `outwards`).
+    ///   - p1: El punto de inicio del borde.
+    ///   - p2: El punto final del borde.
+    ///   - tabSize: El tamaño del saliente o entrante.
+    private func drawEdge(path: inout Path, edgeType: EdgeType, from p1: CGPoint, to p2: CGPoint, tabSize: CGFloat) {
+        switch edgeType {
+        case .flat:
+            path.addLine(to: p2)
+        case .outwards, .inwards:
+            // Calcular los puntos de la base del saliente (a 1/3 y 2/3 del borde)
+            let p_third_1 = CGPoint(x: p1.x + (p2.x - p1.x) / 3, y: p1.y + (p2.y - p1.y) / 3)
+            let p_third_2 = CGPoint(x: p1.x + (p2.x - p1.x) * 2 / 3, y: p1.y + (p2.y - p1.y) * 2 / 3)
+
+            // Calcular el vector normal (perpendicular) al borde para la dirección del saliente
+            let dx = p2.x - p1.x
+            let dy = p2.y - p1.y
+            let len = sqrt(dx*dx + dy*dy)
+            let nx = dy / len
+            let ny = -dx / len
+
+            // El multiplicador invierte la dirección para los entrantes
+            let multiplier: CGFloat = edgeType == .outwards ? 1 : -1
+            let offset = tabSize * multiplier
+
+            // Los dos puntos de control de la curva de Bezier se desplazan a lo largo de la normal
+            let cp1 = CGPoint(x: p_third_1.x + offset * nx, y: p_third_1.y + offset * ny)
+            let cp2 = CGPoint(x: p_third_2.x + offset * nx, y: p_third_2.y + offset * ny)
+
+            // Dibujar el borde: línea, curva y línea
+            path.addLine(to: p_third_1)
+            path.addCurve(to: p_third_2, control1: cp1, control2: cp2)
+            path.addLine(to: p2)
+        }
+    }
+}
+
+
 /// Representa una única pieza del puzzle.
 struct PuzzlePiece: Identifiable, Equatable {
     let id = UUID()
     let image: UIImage
     let originalIndex: Int
+    let shape: PuzzlePieceShape
+
+    // Equatable conformance
+    static func == (lhs: PuzzlePiece, rhs: PuzzlePiece) -> Bool {
+        lhs.id == rhs.id
+    }
 }
 
 /// Gestiona la lógica del juego de puzzle.
+import Combine
+
 class PuzzleViewModel: ObservableObject {
     @Published var pieces: [PuzzlePiece] = []
     @Published var board: [PuzzlePiece?]
     @Published var isSolved: Bool = false
 
+    private(set) var originalPieces: [PuzzlePiece] = []
+    @Published var elapsedTime: TimeInterval = 0
+
     let gridSize: Int
+    private var timer: AnyCancellable?
+    private let startTime = Date()
 
     init(image: UIImage, gridSize: Int) {
         self.gridSize = gridSize
         self.board = Array(repeating: nil, count: gridSize * gridSize)
         self.pieces = self.sliceImage(image: image, gridSize: gridSize)
+        startTimer()
     }
 
     private func sliceImage(image: UIImage, gridSize: Int) -> [PuzzlePiece] {
@@ -89,17 +246,62 @@ class PuzzleViewModel: ObservableObject {
         let pieceHeight = CGFloat(cgImage.height) / CGFloat(gridSize)
         var slicedPieces: [PuzzlePiece] = []
 
+        // Generar todas las formas de las piezas primero
+        let shapes = generatePieceShapes()
+
         for y in 0..<gridSize {
             for x in 0..<gridSize {
                 let rect = CGRect(x: CGFloat(x) * pieceWidth, y: CGFloat(y) * pieceHeight, width: pieceWidth, height: pieceHeight)
                 if let slicedCGImage = cgImage.cropping(to: rect) {
                     let uiImage = UIImage(cgImage: slicedCGImage, scale: image.scale, orientation: image.imageOrientation)
-                    let piece = PuzzlePiece(image: uiImage, originalIndex: y * gridSize + x)
+                    let index = y * gridSize + x
+                    let piece = PuzzlePiece(image: uiImage, originalIndex: index, shape: shapes[index])
                     slicedPieces.append(piece)
                 }
             }
         }
+
+        self.originalPieces = slicedPieces
         return slicedPieces.shuffled()
+    }
+
+    /// Genera una cuadrícula de formas de piezas de puzzle que encajan entre sí.
+    private func generatePieceShapes() -> [PuzzlePieceShape] {
+        let gridSize = self.gridSize
+        var shapes: [PuzzlePieceShape] = []
+
+        // Matrices para los bordes horizontales y verticales internos
+        var horizontalEdges = Array(repeating: Array(repeating: EdgeType.flat, count: gridSize), count: gridSize - 1)
+        var verticalEdges = Array(repeating: Array(repeating: EdgeType.flat, count: gridSize - 1), count: gridSize)
+
+        // Asignar aleatoriamente los bordes internos
+        for row in 0..<(gridSize - 1) {
+            for col in 0..<gridSize {
+                horizontalEdges[row][col] = Bool.random() ? .inwards : .outwards
+            }
+        }
+        for row in 0..<gridSize {
+            for col in 0..<(gridSize - 1) {
+                verticalEdges[row][col] = Bool.random() ? .inwards : .outwards
+            }
+        }
+
+        // Crear la forma para cada pieza
+        for row in 0..<gridSize {
+            for col in 0..<gridSize {
+                // El borde superior es el borde inferior de la pieza de arriba, o plano si está en el borde.
+                let top = row == 0 ? .flat : (horizontalEdges[row - 1][col] == .inwards ? .outwards : .inwards)
+                // El borde derecho es plano si está en el borde.
+                let right = col == gridSize - 1 ? .flat : verticalEdges[row][col]
+                // El borde inferior es plano si está en el borde.
+                let bottom = row == gridSize - 1 ? .flat : horizontalEdges[row][col]
+                // El borde izquierdo es el borde derecho de la pieza de la izquierda, o plano si está en el borde.
+                let left = col == 0 ? .flat : (verticalEdges[row][col - 1] == .inwards ? .outwards : .inwards)
+
+                shapes.append(PuzzlePieceShape(top: top, right: right, bottom: bottom, left: left))
+            }
+        }
+        return shapes
     }
 
     func placePiece(_ piece: PuzzlePiece, at index: Int) {
@@ -108,6 +310,32 @@ class PuzzleViewModel: ObservableObject {
             pieces.removeAll { $0.id == piece.id }
             checkIfSolved()
         }
+    }
+
+    func returnPiece(at index: Int) {
+        guard let pieceToReturn = board[index] else { return }
+        board[index] = nil
+        pieces.append(pieceToReturn)
+        if isSolved {
+            isSolved = false
+        }
+    }
+
+    func startTimer() {
+        timer = Timer.publish(every: 1, on: .main, in: .common)
+            .autoconnect()
+            .sink { [weak self] _ in
+                guard let self = self else { return }
+                self.elapsedTime = Date().timeIntervalSince(self.startTime)
+            }
+    }
+
+    func stopTimer() {
+        timer?.cancel()
+    }
+
+    deinit {
+        stopTimer()
     }
 
     private func checkIfSolved() {
@@ -120,6 +348,7 @@ class PuzzleViewModel: ObservableObject {
                 }
             }
             isSolved = true
+            stopTimer()
         }
     }
 }
@@ -127,35 +356,45 @@ class PuzzleViewModel: ObservableObject {
 /// La vista principal del juego de puzzle, que muestra el tablero y las piezas arrastrables.
 struct PuzzleGameView: View {
     @StateObject var viewModel: PuzzleViewModel
+    @State private var showingGameOver = false
+    @Environment(\.presentationMode) var presentationMode
 
     var body: some View {
-        let columns = Array(repeating: GridItem(.flexible()), count: viewModel.gridSize)
+        let columns = Array(repeating: GridItem(.flexible(), spacing: 1), count: viewModel.gridSize)
 
         VStack {
-            if viewModel.isSolved {
-                Text("¡Puzzle Resuelto!")
-                    .font(.largeTitle)
-                    .foregroundColor(.green)
-                    .padding()
-            } else {
-                Text("Completa el Puzzle")
-                    .font(.title)
-                    .padding()
+            HStack {
+                Text("Tiempo: \(Score(playerName: "", timeInSeconds: viewModel.elapsedTime, mode: .puzzle, totalItems: 0, puzzleGridSize: nil).displayTime)")
+                    .font(.headline)
+                    .padding(.leading)
+                Spacer()
             }
 
-            LazyVGrid(columns: columns, spacing: 2) {
+            Text("Completa el Puzzle")
+                .font(.title)
+                .padding()
+
+            LazyVGrid(columns: columns, spacing: 1) {
                 ForEach(0..<viewModel.board.count, id: \.self) { index in
                     if let piece = viewModel.board[index] {
                         Image(uiImage: piece.image)
                             .resizable()
                             .aspectRatio(1, contentMode: .fit)
-                    } else {
-                        Rectangle()
-                            .fill(Color.gray.opacity(0.3))
-                            .aspectRatio(1, contentMode: .fit)
-                            .onDrop(of: [.text], isTargeted: nil) { providers, _ in
-                                handleDrop(providers: providers, index: index)
+                            .clipShape(piece.shape)
+                            .onTapGesture {
+                                viewModel.returnPiece(at: index)
                             }
+                    } else {
+                        // Dibujar el contorno de la pieza que falta
+                        if !viewModel.originalPieces.isEmpty {
+                            viewModel.originalPieces[index].shape
+                                .stroke(Color.black.opacity(0.2), lineWidth: 2)
+                                .background(Color.gray.opacity(0.15))
+                                .aspectRatio(1, contentMode: .fit)
+                                .onDrop(of: [.text], isTargeted: nil) { providers, _ in
+                                    handleDrop(providers: providers, index: index)
+                                }
+                        }
                     }
                 }
             }
@@ -170,8 +409,10 @@ struct PuzzleGameView: View {
                             Image(uiImage: piece.image)
                                 .resizable()
                                 .frame(width: 80, height: 80)
-                                .cornerRadius(5)
-                                .onDrag { NSItemProvider(object: piece.id.uuidString as NSString) }
+                                .clipShape(piece.shape)
+                                .onDrag {
+                                    NSItemProvider(object: piece.id.uuidString as NSString)
+                                }
                         }
                     }
                     .padding()
@@ -179,6 +420,26 @@ struct PuzzleGameView: View {
             }
         }
         .navigationTitle("Puzzle")
+        .onChange(of: viewModel.isSolved) { isSolved in
+            if isSolved {
+                showingGameOver = true
+            }
+        }
+        .sheet(isPresented: $showingGameOver) {
+            // Pasamos `rankingManager` desde el entorno
+            PuzzleGameOverView(
+                score: viewModel.elapsedTime,
+                gridSize: viewModel.gridSize,
+                onPlayAgain: {
+                    showingGameOver = false
+                    presentationMode.wrappedValue.dismiss()
+                },
+                onMainMenu: {
+                    showingGameOver = false
+                    presentationMode.wrappedValue.dismiss()
+                }
+            )
+        }
     }
 
     private func handleDrop(providers: [NSItemProvider], index: Int) -> Bool {
@@ -306,6 +567,7 @@ struct ContentView: View {
         .sheet(isPresented: $showingOperationSelection) {
             OperationSelectionView(settings: settingsManager, rankingManager: rankingManager)
         }
+        .environmentObject(rankingManager)
     }
 }
 
@@ -588,6 +850,15 @@ class MathViewModel: ObservableObject {
             isGameOver = true
         }
     }
+
+    func resetGame() {
+        score = 0
+        remainingOperations = settings.numberOfOperations
+        userAnswer = ""
+        isShowingAnswer = false
+        isGameOver = false
+        generateNewOperation()
+    }
 }
 
 // Vista para el juego de matemáticas
@@ -595,65 +866,121 @@ struct MathGameView: View {
     @ObservedObject var viewModel: MathViewModel
     @ObservedObject var rankingManager: RankingManager
     @Environment(\.presentationMode) var presentationMode
+    @State private var showingGameOver = false
 
     var body: some View {
         VStack(spacing: 20) {
-            if viewModel.isGameOver {
-                Text("¡Juego Terminado!")
-                    .font(.largeTitle)
-                Text("Tu puntuación: \(viewModel.score) / \(viewModel.settings.numberOfOperations)")
-                    .font(.title)
-                Button("Volver al Menú") {
-                    presentationMode.wrappedValue.dismiss()
+            Text("Operaciones Restantes: \(viewModel.remainingOperations)")
+                .font(.headline)
+
+            if let problem = viewModel.currentProblem {
+                if viewModel.isShowingAnswer {
+                    VStack {
+                        OperationDisplayView(problem: problem)
+                        Text(String(problem.answer))
+                            .font(.largeTitle)
+                            .foregroundColor(Int(viewModel.userAnswer) == problem.answer ? .green : .red)
+                    }
+                } else {
+                    OperationDisplayView(problem: problem)
+                }
+            }
+
+            if viewModel.isShowingAnswer {
+                Button("Continuar") {
+                    viewModel.nextOperation()
                 }
                 .padding()
             } else {
-                Text("Operaciones Restantes: \(viewModel.remainingOperations)")
-                    .font(.headline)
+                TextField("Respuesta", text: $viewModel.userAnswer)
+                    .keyboardType(.numberPad)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 100)
 
-                if let problem = viewModel.currentProblem {
-                    if viewModel.isShowingAnswer {
-                        VStack {
-                            OperationDisplayView(problem: problem)
-                            Text(String(problem.answer))
-                                .font(.largeTitle)
-                                .foregroundColor(Int(viewModel.userAnswer) == problem.answer ? .green : .red)
-                        }
-                    } else {
-                        OperationDisplayView(problem: problem)
-                    }
+                Button("Enviar") {
+                    viewModel.submitAnswer()
                 }
-
-                if viewModel.isShowingAnswer {
-                    Button("Continuar") {
-                        viewModel.nextOperation()
-                    }
-                    .padding()
-                } else {
-                    TextField("Respuesta", text: $viewModel.userAnswer)
-                        .keyboardType(.numberPad)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 100)
-
-                    Button("Enviar") {
-                        viewModel.submitAnswer()
-                    }
-                    .disabled(viewModel.userAnswer.isEmpty)
-                }
+                .disabled(viewModel.userAnswer.isEmpty)
             }
         }
         .navigationTitle("Matemáticas")
         .onChange(of: viewModel.isGameOver) { isGameOver in
             if isGameOver {
-                let newScore = Score(
-                    playerName: "Jugador",
-                    timeInSeconds: 0,
-                    mode: .matematicas,
-                    numberOfPairs: 0,
-                    mathScore: viewModel.score
-                )
-                rankingManager.saveScore(newScore: newScore)
+                showingGameOver = true
             }
         }
+        .sheet(isPresented: $showingGameOver) {
+            MathGameOverView(
+                score: viewModel.score,
+                totalOperations: viewModel.settings.numberOfOperations,
+                rankingManager: rankingManager,
+                onPlayAgain: {
+                    showingGameOver = false
+                    viewModel.resetGame()
+                },
+                onMainMenu: {
+                    showingGameOver = false
+                    presentationMode.wrappedValue.dismiss()
+                }
+            )
+        }
+    }
+}
+
+// Vista de fin de juego para el modo matemáticas
+struct MathGameOverView: View {
+    let score: Int
+    let totalOperations: Int
+    @ObservedObject var rankingManager: RankingManager
+    let onPlayAgain: () -> Void
+    let onMainMenu: () -> Void
+
+    @State private var playerName: String = ""
+    @State private var scoreSaved: Bool = false
+
+    var body: some View {
+        VStack(spacing: 20) {
+            Text("¡Juego Terminado! 🥳")
+                .font(.largeTitle).bold()
+
+            Text("Puntuación: **\(score) / \(totalOperations)**")
+                .font(.title2)
+
+            if !scoreSaved {
+                TextField("Ingresa tu Nombre", text: $playerName)
+                    .textFieldStyle(.roundedBorder)
+                    .padding(.horizontal, 40)
+                    .multilineTextAlignment(.center)
+
+                Button("Guardar Puntuación") {
+                    guard !playerName.isEmpty else { return }
+                    let newScore = Score(
+                        playerName: playerName,
+                        timeInSeconds: 0,
+                        mode: .matematicas,
+                        totalItems: totalOperations,
+                        mathScore: score,
+                        puzzleGridSize: nil
+                    )
+                    rankingManager.saveScore(newScore: newScore)
+                    scoreSaved = true
+                }
+                .buttonStyle(.borderedProminent)
+            } else {
+                Text("¡Puntuación guardada con éxito!")
+                    .foregroundColor(.green)
+            }
+
+            Button("Jugar de Nuevo") {
+                onPlayAgain()
+            }
+            .buttonStyle(.bordered)
+
+            Button("Volver al Menú Principal") {
+                onMainMenu()
+            }
+            .buttonStyle(.bordered)
+        }
+        .padding(40)
     }
 }
