@@ -110,6 +110,15 @@ class PuzzleViewModel: ObservableObject {
         }
     }
 
+    func returnPiece(at index: Int) {
+        guard let pieceToReturn = board[index] else { return }
+        board[index] = nil
+        pieces.append(pieceToReturn)
+        if isSolved {
+            isSolved = false
+        }
+    }
+
     private func checkIfSolved() {
         let isBoardFull = board.allSatisfy { $0 != nil }
         if isBoardFull {
@@ -143,12 +152,15 @@ struct PuzzleGameView: View {
                     .padding()
             }
 
-            LazyVGrid(columns: columns, spacing: 2) {
+            LazyVGrid(columns: columns, spacing: 1) {
                 ForEach(0..<viewModel.board.count, id: \.self) { index in
                     if let piece = viewModel.board[index] {
                         Image(uiImage: piece.image)
                             .resizable()
                             .aspectRatio(1, contentMode: .fit)
+                            .onTapGesture {
+                                viewModel.returnPiece(at: index)
+                            }
                     } else {
                         Rectangle()
                             .fill(Color.gray.opacity(0.3))
@@ -171,7 +183,9 @@ struct PuzzleGameView: View {
                                 .resizable()
                                 .frame(width: 80, height: 80)
                                 .cornerRadius(5)
-                                .onDrag { NSItemProvider(object: piece.id.uuidString as NSString) }
+                                .onDrag {
+                                    NSItemProvider(object: piece.id.uuidString as NSString)
+                                }
                         }
                     }
                     .padding()
@@ -588,6 +602,15 @@ class MathViewModel: ObservableObject {
             isGameOver = true
         }
     }
+
+    func resetGame() {
+        score = 0
+        remainingOperations = settings.numberOfOperations
+        userAnswer = ""
+        isShowingAnswer = false
+        isGameOver = false
+        generateNewOperation()
+    }
 }
 
 // Vista para el juego de matemáticas
@@ -595,65 +618,120 @@ struct MathGameView: View {
     @ObservedObject var viewModel: MathViewModel
     @ObservedObject var rankingManager: RankingManager
     @Environment(\.presentationMode) var presentationMode
+    @State private var showingGameOver = false
 
     var body: some View {
         VStack(spacing: 20) {
-            if viewModel.isGameOver {
-                Text("¡Juego Terminado!")
-                    .font(.largeTitle)
-                Text("Tu puntuación: \(viewModel.score) / \(viewModel.settings.numberOfOperations)")
-                    .font(.title)
-                Button("Volver al Menú") {
-                    presentationMode.wrappedValue.dismiss()
+            Text("Operaciones Restantes: \(viewModel.remainingOperations)")
+                .font(.headline)
+
+            if let problem = viewModel.currentProblem {
+                if viewModel.isShowingAnswer {
+                    VStack {
+                        OperationDisplayView(problem: problem)
+                        Text(String(problem.answer))
+                            .font(.largeTitle)
+                            .foregroundColor(Int(viewModel.userAnswer) == problem.answer ? .green : .red)
+                    }
+                } else {
+                    OperationDisplayView(problem: problem)
+                }
+            }
+
+            if viewModel.isShowingAnswer {
+                Button("Continuar") {
+                    viewModel.nextOperation()
                 }
                 .padding()
             } else {
-                Text("Operaciones Restantes: \(viewModel.remainingOperations)")
-                    .font(.headline)
+                TextField("Respuesta", text: $viewModel.userAnswer)
+                    .keyboardType(.numberPad)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 100)
 
-                if let problem = viewModel.currentProblem {
-                    if viewModel.isShowingAnswer {
-                        VStack {
-                            OperationDisplayView(problem: problem)
-                            Text(String(problem.answer))
-                                .font(.largeTitle)
-                                .foregroundColor(Int(viewModel.userAnswer) == problem.answer ? .green : .red)
-                        }
-                    } else {
-                        OperationDisplayView(problem: problem)
-                    }
+                Button("Enviar") {
+                    viewModel.submitAnswer()
                 }
-
-                if viewModel.isShowingAnswer {
-                    Button("Continuar") {
-                        viewModel.nextOperation()
-                    }
-                    .padding()
-                } else {
-                    TextField("Respuesta", text: $viewModel.userAnswer)
-                        .keyboardType(.numberPad)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 100)
-
-                    Button("Enviar") {
-                        viewModel.submitAnswer()
-                    }
-                    .disabled(viewModel.userAnswer.isEmpty)
-                }
+                .disabled(viewModel.userAnswer.isEmpty)
             }
         }
         .navigationTitle("Matemáticas")
         .onChange(of: viewModel.isGameOver) { isGameOver in
             if isGameOver {
-                let newScore = Score(
-                    playerName: "Jugador",
-                    timeInSeconds: 0,
-                    mode: .matematicas,
-                    numberOfPairs: 0,
-                    mathScore: viewModel.score
-                )
-                rankingManager.saveScore(newScore: newScore)
+                showingGameOver = true
             }
         }
+        .sheet(isPresented: $showingGameOver) {
+            MathGameOverView(
+                score: viewModel.score,
+                totalOperations: viewModel.settings.numberOfOperations,
+                rankingManager: rankingManager,
+                onPlayAgain: {
+                    showingGameOver = false
+                    viewModel.resetGame()
+                },
+                onMainMenu: {
+                    showingGameOver = false
+                    presentationMode.wrappedValue.dismiss()
+                }
+            )
+        }
+    }
+}
+
+// Vista de fin de juego para el modo matemáticas
+struct MathGameOverView: View {
+    let score: Int
+    let totalOperations: Int
+    @ObservedObject var rankingManager: RankingManager
+    let onPlayAgain: () -> Void
+    let onMainMenu: () -> Void
+
+    @State private var playerName: String = ""
+    @State private var scoreSaved: Bool = false
+
+    var body: some View {
+        VStack(spacing: 20) {
+            Text("¡Juego Terminado! 🥳")
+                .font(.largeTitle).bold()
+
+            Text("Puntuación: **\(score) / \(totalOperations)**")
+                .font(.title2)
+
+            if !scoreSaved {
+                TextField("Ingresa tu Nombre", text: $playerName)
+                    .textFieldStyle(.roundedBorder)
+                    .padding(.horizontal, 40)
+                    .multilineTextAlignment(.center)
+
+                Button("Guardar Puntuación") {
+                    guard !playerName.isEmpty else { return }
+                    let newScore = Score(
+                        playerName: playerName,
+                        timeInSeconds: 0,
+                        mode: .matematicas,
+                        totalItems: totalOperations,
+                        mathScore: score
+                    )
+                    rankingManager.saveScore(newScore: newScore)
+                    scoreSaved = true
+                }
+                .buttonStyle(.borderedProminent)
+            } else {
+                Text("¡Puntuación guardada con éxito!")
+                    .foregroundColor(.green)
+            }
+
+            Button("Jugar de Nuevo") {
+                onPlayAgain()
+            }
+            .buttonStyle(.bordered)
+
+            Button("Volver al Menú Principal") {
+                onMainMenu()
+            }
+            .buttonStyle(.bordered)
+        }
+        .padding(40)
     }
 }
