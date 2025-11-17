@@ -130,6 +130,20 @@ struct PuzzleGameOverView: View {
 
 // --- Componentes para la Forma de la Pieza del Puzzle ---
 
+// MARK: - Helpers de Geometría
+extension CGPoint {
+    // Suma dos puntos como si fueran vectores
+    static func + (lhs: CGPoint, rhs: CGPoint) -> CGPoint {
+        return CGPoint(x: lhs.x + rhs.x, y: lhs.y + rhs.y)
+    }
+
+    // Interpola linealmente entre dos puntos
+    func lerp(to point: CGPoint, t: CGFloat) -> CGPoint {
+        return CGPoint(x: self.x + (point.x - self.x) * t, y: self.y + (point.y - self.y) * t)
+    }
+}
+
+
 /// Define el tipo de borde de una pieza del puzzle.
 enum EdgeType {
     case flat, inwards, outwards
@@ -175,29 +189,38 @@ struct PuzzlePieceShape: Shape {
         switch edgeType {
         case .flat:
             path.addLine(to: p2)
+
         case .outwards, .inwards:
-            // Calcular los puntos de la base del saliente (a 1/3 y 2/3 del borde)
-            let p_third_1 = CGPoint(x: p1.x + (p2.x - p1.x) / 3, y: p1.y + (p2.y - p1.y) / 3)
-            let p_third_2 = CGPoint(x: p1.x + (p2.x - p1.x) * 2 / 3, y: p1.y + (p2.y - p1.y) * 2 / 3)
+            // Puntos de interpolación a lo largo del borde
+            let p25 = p1.lerp(to: p2, t: 0.25)
+            let p50 = p1.lerp(to: p2, t: 0.5)
+            let p75 = p1.lerp(to: p2, t: 0.75)
 
-            // Calcular el vector normal (perpendicular) al borde para la dirección del saliente
-            let dx = p2.x - p1.x
-            let dy = p2.y - p1.y
-            let len = sqrt(dx*dx + dy*dy)
-            let nx = dy / len
-            let ny = -dx / len
+            // Vectores tangente y normal
+            let tangent = CGPoint(x: (p2.x - p1.x), y: (p2.y - p1.y))
+            let normal = CGPoint(x: tangent.y, y: -tangent.x)
 
-            // El multiplicador invierte la dirección para los entrantes
+            // Si el borde es hacia adentro, invertimos la normal
             let multiplier: CGFloat = edgeType == .outwards ? 1 : -1
-            let offset = tabSize * multiplier
 
-            // Los dos puntos de control de la curva de Bezier se desplazan a lo largo de la normal
-            let cp1 = CGPoint(x: p_third_1.x + offset * nx, y: p_third_1.y + offset * ny)
-            let cp2 = CGPoint(x: p_third_2.x + offset * nx, y: p_third_2.y + offset * ny)
+            // Aplicar el multiplicador a la normal para todos los cálculos de puntos
+            let scaledNormal = CGPoint(x: normal.x * multiplier, y: normal.y * multiplier)
 
-            // Dibujar el borde: línea, curva y línea
-            path.addLine(to: p_third_1)
-            path.addCurve(to: p_third_2, control1: cp1, control2: cp2)
+            // Puntos de control para el "cuello"
+            let neck_p1 = p25 + CGPoint(x: scaledNormal.x * 0.2, y: scaledNormal.y * 0.2)
+            let neck_p2 = p75 + CGPoint(x: scaledNormal.x * 0.2, y: scaledNormal.y * 0.2)
+
+            // Puntos de control para la "cabeza"
+            let head_cp1 = p25 + CGPoint(x: scaledNormal.x * 0.5, y: scaledNormal.y * 0.5)
+            let head_p = p50 + CGPoint(x: scaledNormal.x * 0.45, y: scaledNormal.y * 0.45)
+            let head_cp2 = p75 + CGPoint(x: scaledNormal.x * 0.5, y: scaledNormal.y * 0.5)
+
+            // Dibujar la secuencia de curvas
+            path.addLine(to: p25)
+            path.addCurve(to: neck_p1, control1: p25, control2: neck_p1)
+            path.addCurve(to: head_p, control1: head_cp1, control2: head_p)
+            path.addCurve(to: neck_p2, control1: head_p, control2: head_cp2)
+            path.addCurve(to: p75, control1: neck_p2, control2: p75)
             path.addLine(to: p2)
         }
     }
