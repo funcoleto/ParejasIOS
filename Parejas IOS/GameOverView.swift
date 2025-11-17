@@ -21,7 +21,7 @@ struct GameOverView: View {
             Text("Modo: \(mode.rawValue)")
                 .font(.title2)
             
-            Text("Tu Tiempo: **\(Score(playerName: "", timeInSeconds: score, mode: mode, totalItems: viewModel.cards.count / 2).displayTime)**")
+            Text("Tu Tiempo: **\(Score(playerName: "", timeInSeconds: score, mode: mode, totalItems: viewModel.cards.count / 2, puzzleGridSize: nil).displayTime)**")
                 .font(.title2)
             
             if !scoreSaved {
@@ -33,7 +33,7 @@ struct GameOverView: View {
                 // Función clave: Guardar la puntuación en el RankingManager
                 Button("Guardar Puntuación") {
                     guard !playerName.isEmpty else { return }
-                    let newScore = Score(playerName: playerName, timeInSeconds: score, mode: mode, totalItems: viewModel.cards.count / 2)
+                    let newScore = Score(playerName: playerName, timeInSeconds: score, mode: mode, totalItems: viewModel.cards.count / 2, puzzleGridSize: nil)
                     rankingManager.saveScore(newScore: newScore)
                     scoreSaved = true
                 }
