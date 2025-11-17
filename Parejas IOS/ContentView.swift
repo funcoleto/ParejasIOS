@@ -293,6 +293,12 @@ class PuzzleViewModel: ObservableObject {
                                               space: colorSpace,
                                               bitmapInfo: bitmapInfo) else { continue }
 
+                // --- FIX: Invertir el sistema de coordenadas de Core Graphics ---
+                // Core Graphics tiene su origen en la parte inferior izquierda, mientras que SwiftUI lo tiene en la parte superior izquierda.
+                // Esta transformación voltea el contexto verticalmente para que coincidan.
+                context.scaleBy(x: 1.0, y: -1.0)
+                context.translateBy(x: 0, y: -pieceHeight)
+
                 // Mover el origen del contexto para que la sección correcta de la imagen se dibuje
                 context.translateBy(x: -CGFloat(x) * pieceWidth, y: -CGFloat(y) * pieceHeight)
 
