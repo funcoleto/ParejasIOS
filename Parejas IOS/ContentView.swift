@@ -191,36 +191,30 @@ struct PuzzlePieceShape: Shape {
             path.addLine(to: p2)
 
         case .outwards, .inwards:
-            // Puntos de interpolación a lo largo del borde
-            let p25 = p1.lerp(to: p2, t: 0.25)
-            let p50 = p1.lerp(to: p2, t: 0.5)
-            let p75 = p1.lerp(to: p2, t: 0.75)
-
-            // Vectores tangente y normal
-            let tangent = CGPoint(x: (p2.x - p1.x), y: (p2.y - p1.y))
-            let normal = CGPoint(x: tangent.y, y: -tangent.x)
-
-            // Si el borde es hacia adentro, invertimos la normal
             let multiplier: CGFloat = edgeType == .outwards ? 1 : -1
 
-            // Aplicar el multiplicador a la normal para todos los cálculos de puntos
-            let scaledNormal = CGPoint(x: normal.x * multiplier, y: normal.y * multiplier)
+            // Puntos a lo largo del borde
+            let p3_8 = p1.lerp(to: p2, t: 0.375)
+            let p4_8 = p1.lerp(to: p2, t: 0.5)
+            let p5_8 = p1.lerp(to: p2, t: 0.625)
 
-            // Puntos de control para el "cuello"
-            let neck_p1 = p25 + CGPoint(x: scaledNormal.x * 0.2, y: scaledNormal.y * 0.2)
-            let neck_p2 = p75 + CGPoint(x: scaledNormal.x * 0.2, y: scaledNormal.y * 0.2)
+            // Vectores
+            let tangent = CGPoint(x: (p2.x - p1.x), y: (p2.y - p1.y))
+            let normal = CGPoint(x: tangent.y * multiplier, y: -tangent.x * multiplier)
 
-            // Puntos de control para la "cabeza"
-            let head_cp1 = p25 + CGPoint(x: scaledNormal.x * 0.5, y: scaledNormal.y * 0.5)
-            let head_p = p50 + CGPoint(x: scaledNormal.x * 0.45, y: scaledNormal.y * 0.45)
-            let head_cp2 = p75 + CGPoint(x: scaledNormal.x * 0.5, y: scaledNormal.y * 0.5)
+            // Puntos de control
+            let c1 = p3_8
+            let c2 = p3_8 + CGPoint(x: normal.x * 0.25, y: normal.y * 0.25)
+            let c3 = p4_8 + CGPoint(x: normal.x * 0.25, y: normal.y * 0.25)
+            let c4 = p4_8
+            let c5 = p4_8 + CGPoint(x: normal.x * 0.25, y: normal.y * 0.25)
+            let c6 = p5_8 + CGPoint(x: normal.x * 0.25, y: normal.y * 0.25)
+            let c7 = p5_8
 
-            // Dibujar la secuencia de curvas
-            path.addLine(to: p25)
-            path.addCurve(to: neck_p1, control1: p25, control2: neck_p1)
-            path.addCurve(to: head_p, control1: head_cp1, control2: head_p)
-            path.addCurve(to: neck_p2, control1: head_p, control2: head_cp2)
-            path.addCurve(to: p75, control1: neck_p2, control2: p75)
+            // Dibujar la forma
+            path.addLine(to: c1)
+            path.addCurve(to: c4, control1: c2, control2: c3)
+            path.addCurve(to: c7, control1: c5, control2: c6)
             path.addLine(to: p2)
         }
     }
