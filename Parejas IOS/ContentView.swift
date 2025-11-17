@@ -297,7 +297,7 @@ class PuzzleViewModel: ObservableObject {
                 context.translateBy(x: -CGFloat(x) * pieceWidth, y: -CGFloat(y) * pieceHeight)
 
                 // Aplicar el clipping path
-                context.addPath(path)
+                context.addPath(path.cgPath)
                 context.clip()
 
                 // Dibujar la imagen completa en el contexto. Solo la parte dentro del path será visible.
