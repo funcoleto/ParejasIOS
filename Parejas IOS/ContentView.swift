@@ -224,6 +224,7 @@ class PuzzleViewModel: ObservableObject {
     @Published var pieces: [PuzzlePiece] = []
     @Published var board: [PuzzlePiece?]
     @Published var isSolved: Bool = false
+    @Published var elapsedTime: TimeInterval = 0
 
     private(set) var originalPieces: [PuzzlePiece] = []
     @Published var elapsedTime: TimeInterval = 0
