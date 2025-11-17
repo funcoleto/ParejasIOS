@@ -193,28 +193,32 @@ struct PuzzlePieceShape: Shape {
         case .outwards, .inwards:
             let multiplier: CGFloat = edgeType == .outwards ? 1 : -1
 
-            // Puntos a lo largo del borde
-            let p3_8 = p1.lerp(to: p2, t: 0.375)
-            let p4_8 = p1.lerp(to: p2, t: 0.5)
-            let p5_8 = p1.lerp(to: p2, t: 0.625)
+            // Puntos de interpolación a lo largo del borde
+            let p_start = p1.lerp(to: p2, t: 0.4)
+            let p_end = p1.lerp(to: p2, t: 0.6)
 
-            // Vectores
-            let tangent = CGPoint(x: (p2.x - p1.x), y: (p2.y - p1.y))
-            let normal = CGPoint(x: tangent.y * multiplier, y: -tangent.x * multiplier)
+            // Punto central del saliente
+            let p_center = p1.lerp(to: p2, t: 0.5)
 
-            // Puntos de control
-            let c1 = p3_8
-            let c2 = p3_8 + CGPoint(x: normal.x * 0.25, y: normal.y * 0.25)
-            let c3 = p4_8 + CGPoint(x: normal.x * 0.25, y: normal.y * 0.25)
-            let c4 = p4_8
-            let c5 = p4_8 + CGPoint(x: normal.x * 0.25, y: normal.y * 0.25)
-            let c6 = p5_8 + CGPoint(x: normal.x * 0.25, y: normal.y * 0.25)
-            let c7 = p5_8
+            // Calcular vector normal y normalizarlo
+            let dx = p2.x - p1.x
+            let dy = p2.y - p1.y
+            let len = sqrt(dx*dx + dy*dy)
+            let nx = dy / len
+            let ny = -dx / len
 
-            // Dibujar la forma
-            path.addLine(to: c1)
-            path.addCurve(to: c4, control1: c2, control2: c3)
-            path.addCurve(to: c7, control1: c5, control2: c6)
+            let normal = CGPoint(x: nx * tabSize * multiplier, y: ny * tabSize * multiplier)
+
+            // Punto de la cabeza
+            let head_p = p_center + normal
+
+            // Puntos de control para las curvas del cuello
+            let neck_cp1 = p_start + normal
+            let neck_cp2 = p_end + normal
+
+            path.addLine(to: p_start)
+            path.addCurve(to: head_p, control1: neck_cp1, control2: head_p)
+            path.addCurve(to: p_end, control1: head_p, control2: neck_cp2)
             path.addLine(to: p2)
         }
     }
