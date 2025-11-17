@@ -224,10 +224,8 @@ class PuzzleViewModel: ObservableObject {
     @Published var pieces: [PuzzlePiece] = []
     @Published var board: [PuzzlePiece?]
     @Published var isSolved: Bool = false
-    @Published var elapsedTime: TimeInterval = 0
 
     private(set) var originalPieces: [PuzzlePiece] = []
-    @Published var elapsedTime: TimeInterval = 0
 
     let gridSize: Int
     private var timer: AnyCancellable?
@@ -291,13 +289,13 @@ class PuzzleViewModel: ObservableObject {
         for row in 0..<gridSize {
             for col in 0..<gridSize {
                 // El borde superior es el borde inferior de la pieza de arriba, o plano si está en el borde.
-                let top = row == 0 ? .flat : (horizontalEdges[row - 1][col] == .inwards ? .outwards : .inwards)
+                let top = row == 0 ? EdgeType.flat : (horizontalEdges[row - 1][col] == .inwards ? .outwards : .inwards)
                 // El borde derecho es plano si está en el borde.
-                let right = col == gridSize - 1 ? .flat : verticalEdges[row][col]
+                let right = col == gridSize - 1 ? EdgeType.flat : verticalEdges[row][col]
                 // El borde inferior es plano si está en el borde.
-                let bottom = row == gridSize - 1 ? .flat : horizontalEdges[row][col]
+                let bottom = row == gridSize - 1 ? EdgeType.flat : horizontalEdges[row][col]
                 // El borde izquierdo es el borde derecho de la pieza de la izquierda, o plano si está en el borde.
-                let left = col == 0 ? .flat : (verticalEdges[row][col - 1] == .inwards ? .outwards : .inwards)
+                let left = col == 0 ? EdgeType.flat : (verticalEdges[row][col - 1] == .inwards ? .outwards : .inwards)
 
                 shapes.append(PuzzlePieceShape(top: top, right: right, bottom: bottom, left: left))
             }
