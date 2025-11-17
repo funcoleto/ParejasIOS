@@ -26,10 +26,14 @@ struct RankingView: View {
                     Text("Nombre").bold()
                     Spacer()
                     
-                    if selectedMode == .matematicas {
+                    switch selectedMode {
+                    case .matematicas:
                         Text("Aciertos").bold().frame(width: 70, alignment: .trailing)
                         Text("Fallos").bold().frame(width: 70, alignment: .trailing)
-                    } else {
+                    case .puzzle:
+                        Text("Tiempo").bold().frame(width: 60, alignment: .trailing)
+                        Text("Tamaño").bold().frame(width: 70, alignment: .trailing)
+                    default:
                         Text("Tiempo").bold().frame(width: 60, alignment: .trailing)
                         Text("Parejas").bold().frame(width: 70, alignment: .trailing)
                     }
@@ -49,12 +53,16 @@ struct RankingView: View {
                             Text(score.playerName)
                             Spacer()
                             
-                            if selectedMode == .matematicas {
+                            switch selectedMode {
+                            case .matematicas:
                                 let aciertos = score.mathScore ?? 0
                                 let fallos = score.totalItems - aciertos
                                 Text("\(aciertos)").frame(width: 70, alignment: .trailing)
                                 Text("\(fallos)").frame(width: 70, alignment: .trailing)
-                            } else {
+                            case .puzzle:
+                                Text(score.displayTime).frame(width: 60, alignment: .trailing)
+                                Text(score.puzzleGridSize ?? "").frame(width: 70, alignment: .trailing)
+                            default:
                                 Text(score.displayTime).frame(width: 60, alignment: .trailing)
                                 Text("\(score.totalItems)").frame(width: 70, alignment: .trailing)
                             }

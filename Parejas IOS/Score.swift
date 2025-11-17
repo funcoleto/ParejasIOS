@@ -8,6 +8,7 @@ struct Score: Identifiable, Codable, Equatable {
     var mode: GameMode
     var totalItems: Int // Nº de parejas, operaciones, etc.
     var mathScore: Int? // Aciertos en el modo matemáticas
+    var puzzleGridSize: String? // Tamaño de la cuadrícula para el puzzle
     var date = Date()
     
     // Formatea el tiempo para visualización (ej: 01:30.5)

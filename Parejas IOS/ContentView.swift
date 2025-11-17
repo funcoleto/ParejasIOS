@@ -61,6 +61,73 @@ struct PuzzleSetupView: View {
     }
 }
 
+// Vista de fin de juego para el modo puzzle
+struct PuzzleGameOverView: View {
+    @EnvironmentObject var rankingManager: RankingManager
+    let score: TimeInterval
+    let gridSize: Int
+    let onPlayAgain: () -> Void
+    let onMainMenu: () -> Void
+
+    @State private var playerName: String = ""
+    @State private var scoreSaved: Bool = false
+
+    private var gridSizeString: String {
+        "\(gridSize)x\(gridSize)"
+    }
+
+    var body: some View {
+        VStack(spacing: 20) {
+            Text("¡Puzzle Resuelto! 🥳")
+                .font(.largeTitle).bold()
+
+            Text("Tu Tiempo: **\(Score(playerName: "", timeInSeconds: score, mode: .puzzle, totalItems: 0).displayTime)**")
+                .font(.title2)
+
+            Text("Tamaño: **\(gridSizeString)**")
+                .font(.headline)
+
+            if !scoreSaved {
+                TextField("Ingresa tu Nombre", text: $playerName)
+                    .textFieldStyle(.roundedBorder)
+                    .padding(.horizontal, 40)
+                    .multilineTextAlignment(.center)
+
+                Button("Guardar Puntuación") {
+                    guard !playerName.isEmpty else { return }
+                    // Aquí necesitamos una forma de guardar el tamaño de la cuadrícula en el objeto Score.
+                    // Por ahora, lo dejaremos como 0. Lo arreglaremos en el siguiente paso.
+                    let newScore = Score(
+                        playerName: playerName,
+                        timeInSeconds: score,
+                        mode: .puzzle,
+                        totalItems: gridSize * gridSize,
+                        mathScore: nil,
+                        puzzleGridSize: gridSizeString
+                    )
+                    rankingManager.saveScore(newScore: newScore)
+                    scoreSaved = true
+                }
+                .buttonStyle(.borderedProminent)
+            } else {
+                Text("¡Puntuación guardada con éxito!")
+                    .foregroundColor(.green)
+            }
+
+            Button("Jugar de Nuevo") {
+                onPlayAgain()
+            }
+            .buttonStyle(.bordered)
+
+            Button("Volver al Menú") {
+                onMainMenu()
+            }
+            .buttonStyle(.bordered)
+        }
+        .padding(40)
+    }
+}
+
 /// Representa una única pieza del puzzle.
 struct PuzzlePiece: Identifiable, Equatable {
     let id = UUID()
@@ -69,17 +136,23 @@ struct PuzzlePiece: Identifiable, Equatable {
 }
 
 /// Gestiona la lógica del juego de puzzle.
+import Combine
+
 class PuzzleViewModel: ObservableObject {
     @Published var pieces: [PuzzlePiece] = []
     @Published var board: [PuzzlePiece?]
     @Published var isSolved: Bool = false
+    @Published var elapsedTime: TimeInterval = 0
 
     let gridSize: Int
+    private var timer: AnyCancellable?
+    private let startTime = Date()
 
     init(image: UIImage, gridSize: Int) {
         self.gridSize = gridSize
         self.board = Array(repeating: nil, count: gridSize * gridSize)
         self.pieces = self.sliceImage(image: image, gridSize: gridSize)
+        startTimer()
     }
 
     private func sliceImage(image: UIImage, gridSize: Int) -> [PuzzlePiece] {
@@ -119,6 +192,23 @@ class PuzzleViewModel: ObservableObject {
         }
     }
 
+    func startTimer() {
+        timer = Timer.publish(every: 1, on: .main, in: .common)
+            .autoconnect()
+            .sink { [weak self] _ in
+                guard let self = self else { return }
+                self.elapsedTime = Date().timeIntervalSince(self.startTime)
+            }
+    }
+
+    func stopTimer() {
+        timer?.cancel()
+    }
+
+    deinit {
+        stopTimer()
+    }
+
     private func checkIfSolved() {
         let isBoardFull = board.allSatisfy { $0 != nil }
         if isBoardFull {
@@ -129,6 +219,7 @@ class PuzzleViewModel: ObservableObject {
                 }
             }
             isSolved = true
+            stopTimer()
         }
     }
 }
@@ -136,21 +227,23 @@ class PuzzleViewModel: ObservableObject {
 /// La vista principal del juego de puzzle, que muestra el tablero y las piezas arrastrables.
 struct PuzzleGameView: View {
     @StateObject var viewModel: PuzzleViewModel
+    @State private var showingGameOver = false
+    @Environment(\.presentationMode) var presentationMode
 
     var body: some View {
-        let columns = Array(repeating: GridItem(.flexible()), count: viewModel.gridSize)
+        let columns = Array(repeating: GridItem(.flexible(), spacing: 1), count: viewModel.gridSize)
 
         VStack {
-            if viewModel.isSolved {
-                Text("¡Puzzle Resuelto!")
-                    .font(.largeTitle)
-                    .foregroundColor(.green)
-                    .padding()
-            } else {
-                Text("Completa el Puzzle")
-                    .font(.title)
-                    .padding()
+            HStack {
+                Text("Tiempo: \(Score(playerName: "", timeInSeconds: viewModel.elapsedTime, mode: .puzzle, totalItems: 0, puzzleGridSize: nil).displayTime)")
+                    .font(.headline)
+                    .padding(.leading)
+                Spacer()
             }
+
+            Text("Completa el Puzzle")
+                .font(.title)
+                .padding()
 
             LazyVGrid(columns: columns, spacing: 1) {
                 ForEach(0..<viewModel.board.count, id: \.self) { index in
@@ -193,6 +286,26 @@ struct PuzzleGameView: View {
             }
         }
         .navigationTitle("Puzzle")
+        .onChange(of: viewModel.isSolved) { isSolved in
+            if isSolved {
+                showingGameOver = true
+            }
+        }
+        .sheet(isPresented: $showingGameOver) {
+            // Pasamos `rankingManager` desde el entorno
+            PuzzleGameOverView(
+                score: viewModel.elapsedTime,
+                gridSize: viewModel.gridSize,
+                onPlayAgain: {
+                    showingGameOver = false
+                    presentationMode.wrappedValue.dismiss()
+                },
+                onMainMenu: {
+                    showingGameOver = false
+                    presentationMode.wrappedValue.dismiss()
+                }
+            )
+        }
     }
 
     private func handleDrop(providers: [NSItemProvider], index: Int) -> Bool {
@@ -320,6 +433,7 @@ struct ContentView: View {
         .sheet(isPresented: $showingOperationSelection) {
             OperationSelectionView(settings: settingsManager, rankingManager: rankingManager)
         }
+        .environmentObject(rankingManager)
     }
 }
 
@@ -711,7 +825,8 @@ struct MathGameOverView: View {
                         timeInSeconds: 0,
                         mode: .matematicas,
                         totalItems: totalOperations,
-                        mathScore: score
+                        mathScore: score,
+                        puzzleGridSize: nil
                     )
                     rankingManager.saveScore(newScore: newScore)
                     scoreSaved = true
