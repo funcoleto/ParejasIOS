@@ -10,29 +10,6 @@ struct GameView: View {
     @State private var showingGameOver = false
     @State private var finalTime: Double = 0.0
     
-    // Propiedad calculada: Determina el número de columnas para la cuadrícula
-    private var columns: [GridItem] {
-        let totalCards = viewModel.cards.count
-        guard totalCards > 0 else { return [] }
-
-        // Algoritmo para determinar el número de columnas ideal
-        let numColumns: Int
-        if totalCards <= 12 {
-            numColumns = 3
-        } else if totalCards <= 20 {
-            numColumns = 4
-        } else if totalCards <= 30 {
-            numColumns = 5
-        } else if totalCards <= 42 {
-            numColumns = 6
-        } else {
-            numColumns = 7
-        }
-        
-        // Crea las columnas flexibles para que se ajusten al ancho disponible.
-        return Array(repeating: GridItem(.flexible(), spacing: 10), count: numColumns)
-    }
-    
     var body: some View {
         VStack {
             // Marcadores de Estado
@@ -51,24 +28,25 @@ struct GameView: View {
             .font(.headline)
             .padding([.horizontal, .top])
             
-            // Cuadrícula de Cartas con Columnas Dinámicas
-            LazyVGrid(columns: columns, spacing: 10) {
-                ForEach(viewModel.cards) { card in
-                    CardView(viewModel: viewModel, card: card, settings: viewModel.settings)
-                        // AspectRatio para mantener la forma vertical de la carta
-                        .aspectRatio(2/3, contentMode: .fit)
-                        .opacity(card.isMatched && !viewModel.settings.showMatchedCards ? 0 : 1) // Oculta las cartas emparejadas
-                        .onTapGesture {
-                            viewModel.choose(card: card)
-                        }
+            // Geometría para adaptar la cuadrícula al espacio disponible
+            GeometryReader { geometry in
+                let gridColumns = calculateGridColumns(for: geometry.size)
+
+                // Cuadrícula de Cartas con Columnas Dinámicas
+                LazyVGrid(columns: gridColumns, spacing: 10) {
+                    ForEach(viewModel.cards) { card in
+                        CardView(viewModel: viewModel, card: card, settings: viewModel.settings)
+                            // AspectRatio para mantener la forma vertical de la carta
+                            .aspectRatio(2/3, contentMode: .fit)
+                            .opacity(card.isMatched && !viewModel.settings.showMatchedCards ? 0 : 1)
+                            .onTapGesture {
+                                viewModel.choose(card: card)
+                            }
+                    }
                 }
+                .padding()
             }
-            .padding()
-            
-            Spacer() // Empuja el contenido hacia arriba si hay espacio sobrante
         }
-        // Clave para evitar errores de Layout: La vista ocupa todo el espacio disponible
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .navigationTitle("Jugar")
         .navigationBarTitleDisplayMode(.inline) // Estilo compacto para reducir conflictos
         
@@ -104,5 +82,35 @@ struct GameView: View {
         .onDisappear {
             viewModel.stopTimer()
         }
+    }
+
+    // Función para calcular el número óptimo de columnas
+    private func calculateGridColumns(for size: CGSize) -> [GridItem] {
+        let totalCards = viewModel.cards.count
+        guard totalCards > 0 else { return [] }
+
+        let cardAspectRatio: CGFloat = 2/3
+        let spacing: CGFloat = 10 // Espaciado horizontal y vertical
+
+        var bestColumnCount = 1
+        var maxCardHeight: CGFloat = 0
+
+        // Itera para encontrar el número de columnas que maximiza el tamaño de la carta
+        // sin que la altura total de la cuadrícula exceda la altura disponible.
+        for columnCount in 2...10 { // Prueba con un número razonable de columnas
+            let totalSpacingWidth = spacing * CGFloat(columnCount - 1)
+            let cardWidth = (size.width - totalSpacingWidth - 20) / CGFloat(columnCount) // 20 para padding
+            let cardHeight = cardWidth / cardAspectRatio
+
+            let rowCount = ceil(CGFloat(totalCards) / CGFloat(columnCount))
+            let totalGridHeight = (rowCount * cardHeight) + (spacing * (rowCount - 1))
+
+            if totalGridHeight <= size.height && cardHeight > maxCardHeight {
+                maxCardHeight = cardHeight
+                bestColumnCount = columnCount
+            }
+        }
+
+        return Array(repeating: GridItem(.flexible(), spacing: spacing), count: bestColumnCount)
     }
 }
