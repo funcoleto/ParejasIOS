@@ -11,6 +11,9 @@ struct PuzzleSetupView: View {
     @State private var showingImagePicker = false
     @State private var gridSize = 3 // Default: 3x3
 
+    // Acceso a los ajustes para pasar al ViewModel
+    @StateObject var settings = SettingsManager()
+
     var body: some View {
         VStack(spacing: 30) {
             Text("Modo Puzzle")
@@ -40,7 +43,7 @@ struct PuzzleSetupView: View {
             Stepper("Tamaño de la cuadrícula: \(gridSize)x\(gridSize)", value: $gridSize, in: 3...10)
                 .padding(.horizontal)
 
-            NavigationLink(destination: PuzzleGameView(viewModel: PuzzleViewModel(image: selectedImage!, gridSize: gridSize))) {
+            NavigationLink(destination: PuzzleGameView(viewModel: PuzzleViewModel(image: selectedImage!, gridSize: gridSize, settings: settings))) {
                 Text("¡Empezar a Jugar!")
                     .font(.title2).bold()
                     .padding()
@@ -358,15 +361,19 @@ class PuzzleViewModel: ObservableObject {
     @Published var board: [PuzzlePiece?]
     @Published var isSolved: Bool = false
     @Published var elapsedTime: TimeInterval = 0
+    @Published var showHints: Bool
 
     private(set) var originalPieces: [PuzzlePiece] = []
 
     let gridSize: Int
     private var timer: AnyCancellable?
     private let startTime = Date()
+    let settings: SettingsManager
 
-    init(image: UIImage, gridSize: Int) {
+    init(image: UIImage, gridSize: Int, settings: SettingsManager) {
         self.gridSize = gridSize
+        self.settings = settings
+        self.showHints = settings.showPuzzleHints
         self.board = Array(repeating: nil, count: gridSize * gridSize)
         self.pieces = self.sliceImage(image: image, gridSize: gridSize)
         startTimer()
@@ -587,9 +594,27 @@ struct PuzzleGameView: View {
                     ForEach(0..<viewModel.board.count, id: \.self) { index in
                         ZStack {
                             // Fondo de celda vacía
-                            Rectangle()
-                                .fill(Color.gray.opacity(0.2))
-                                .border(Color.white.opacity(0.2), width: 0.5)
+                            // Eliminamos el fondo gris transparente (ahora es clear)
+                            // Si está activada la ayuda (showHints), mostramos la silueta
+                            if viewModel.board[index] == nil {
+                                Rectangle()
+                                    .fill(Color.clear)
+                                    .border(Color.white.opacity(0.1), width: 0.5) // Borde muy sutil para guía visual
+
+                                if viewModel.showHints && index < viewModel.originalPieces.count {
+                                    // Usamos la pieza original para saber la forma correcta
+                                    let originalPiece = viewModel.originalPieces[index]
+
+                                    // Dibujamos solo el contorno o una forma semitransparente muy suave
+                                    // Necesitamos escalar igual que en PieceView
+                                    let scaleFactor: CGFloat = 1.6
+
+                                    FormaPuzzle(bordes: originalPiece.bordes)
+                                        .stroke(Color.black.opacity(0.1), lineWidth: 1)
+                                        .frame(width: cellSize * scaleFactor, height: cellSize * scaleFactor)
+                                        .allowsHitTesting(false)
+                                }
+                            }
 
                             // Pieza colocada
                             if let piece = viewModel.board[index] {
@@ -982,11 +1007,18 @@ class SettingsManager: ObservableObject {
         }
     }
 
+    @Published var showPuzzleHints: Bool {
+        didSet {
+            UserDefaults.standard.set(showPuzzleHints, forKey: "showPuzzleHints")
+        }
+    }
+
     init() {
         self.numberOfPairs = UserDefaults.standard.object(forKey: "numberOfPairs") as? Int ?? 10
         self.showMatchedCards = UserDefaults.standard.object(forKey: "showMatchedCards") as? Bool ?? false
         self.isMusicEnabled = UserDefaults.standard.object(forKey: "isMusicEnabled") as? Bool ?? true
         self.numberOfOperations = UserDefaults.standard.object(forKey: "numberOfOperations") as? Int ?? 4
+        self.showPuzzleHints = UserDefaults.standard.object(forKey: "showPuzzleHints") as? Bool ?? true
     }
 }
 
@@ -1006,6 +1038,12 @@ struct OptionsView: View {
 
                 Toggle(isOn: $settings.isMusicEnabled) {
                     Text("Música de Fondo")
+                }
+            }
+
+            Section(header: Text("Configuración del Puzzle")) {
+                Toggle(isOn: $settings.showPuzzleHints) {
+                    Text("Mostrar silueta de piezas")
                 }
             }
 
