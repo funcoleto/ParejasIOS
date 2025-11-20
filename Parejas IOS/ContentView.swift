@@ -167,9 +167,6 @@ struct FormaPuzzle: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()
 
-        let width = rect.width
-        let height = rect.height
-
         // Definimos el tamaño relativo de la "oreja" o pestaña del puzzle
         // Asumimos que el rect incluye el espacio para las pestañas salientes si es necesario,
         // pero para simplificar el layout en SwiftUI, a menudo dibujamos dentro del rect
@@ -228,40 +225,14 @@ struct FormaPuzzle: Shape {
 
     // Función auxiliar para dibujar la pestaña
     private func addTab(to path: inout Path, start: CGPoint, end: CGPoint, type: TipoBorde, isHorizontal: Bool) {
-        let midX = (start.x + end.x) / 2
-        let midY = (start.y + end.y) / 2
         let distance = isHorizontal ? abs(end.x - start.x) : abs(end.y - start.y)
-        let tabSize = distance * 0.25 // Tamaño de la curva base
         let tabHeight = distance * 0.25 // Altura de la pestaña
-
-        // Factor de dirección: 1 si es saliente, -1 si es entrante (pero depende de la dirección del trazado)
-        // Si estamos dibujando el top (izq -> der), saliente es hacia arriba (-Y).
-        // Si right (arriba -> abajo), saliente es derecha (+X).
-        // Si bottom (der -> izq), saliente es abajo (+Y).
-        // Si left (abajo -> arriba), saliente es izquierda (-X).
-
-        // Determinamos el vector perpendicular "hacia afuera" del centro de la pieza
-        var sign: CGFloat = type == .saliente ? 1.0 : -1.0
-
-        // Ajuste de signo basado en la "normal" del lado
-        // Top: normal es -Y. Right: +X. Bottom: +Y. Left: -X.
-        // Pero nuestras coordenadas de dibujo siguen el perímetro.
-        // Top (->): Curva a la izquierda del vector de dirección es "arriba".
-
-        // Simplificación: Usaremos geometría relativa.
-
-        // Puntos clave para una curva tipo puzzle estándar (Bézier)
-        // Base del cuello: 1/3 y 2/3 del segmento? No, más complejo.
-        // Usemos una forma estilizada.
-
-        let seg1 = 0.35 * distance
-        let seg2 = 0.65 * distance
 
         // Puntos sobre la línea base
         var p1, p2: CGPoint
 
         // Puntos de control y punta
-        var c1, c2, tip: CGPoint
+        var tip: CGPoint
 
         // Offset perpendicular para la altura de la pestaña
         // Para saber hacia dónde es "afuera" o "adentro"
@@ -303,28 +274,8 @@ struct FormaPuzzle: Shape {
         let tipY = start.y + dy * 0.5 + perpY * tabHeight
         tip = CGPoint(x: tipX, y: tipY)
 
-        // Puntos de control. Para hacerlo "bombilla" necesitamos que el cuello se estreche un poco o sea recto.
-        // Haremos una curva suave cúbica.
-
-        // C1: Control para subir desde p1. Un poco hacia la punta.
-        let c1X = p1.x + perpX * (tabHeight * 1.2)
-        let c1Y = p1.y + perpY * (tabHeight * 1.2)
-
-        // C2: Control para bajar hacia p2.
-        let c2X = p2.x + perpX * (tabHeight * 1.2)
-        let c2Y = p2.y + perpY * (tabHeight * 1.2)
-
         // Dibujamos la línea hasta el inicio de la pestaña
         path.addLine(to: p1)
-
-        // Dibujamos la pestaña con 3 curvas o 1 curva compleja?
-        // Una curva simple cubic bezier p1 -> tip -> p2 suele quedar muy triangular.
-        // Usaremos un estilo más "pieza de puzzle" con un cuello.
-
-        let shoulder = tabSize * 0.2
-
-        let neck1 = CGPoint(x: p1.x + perpX * shoulder, y: p1.y + perpY * shoulder)
-        let neck2 = CGPoint(x: p2.x + perpX * shoulder, y: p2.y + perpY * shoulder)
 
         // Vamos a hacer algo más simple pero efectivo: Curva hacia la punta y vuelta.
         // Usamos quad curves para un look más orgánico.
@@ -757,7 +708,6 @@ struct PuzzleGameView: View {
                 else if let existingIndex = viewModel.board.firstIndex(where: { $0?.id.uuidString == id }),
                         let piece = viewModel.board[existingIndex] {
                     viewModel.removePiece(piece)
-                    // Opcional: Moverla cerca de la targetPiece
                 }
             }
         }
@@ -779,71 +729,6 @@ struct PuzzleGameView: View {
             }
         }
         return true
-    }
-
-    private func handleDropOnHand(providers: [NSItemProvider], targetPiece: PuzzlePiece) -> Bool {
-        guard let provider = providers.first else { return false }
-
-        provider.loadObject(ofClass: NSString.self) { (idString, error) in
-            guard let id = idString as? String else { return }
-
-            DispatchQueue.main.async {
-                // Si viene de la mano (reordenar)
-                if let sourcePiece = viewModel.pieces.first(where: { $0.id.uuidString == id }) {
-                    viewModel.reorderPieceInHand(piece: sourcePiece, droppedOn: targetPiece)
-                }
-                // Si viene del tablero (quitar)
-                else if let existingIndex = viewModel.board.firstIndex(where: { $0?.id.uuidString == id }),
-                        let piece = viewModel.board[existingIndex] {
-                    viewModel.removePiece(piece)
-                    // Opcional: Moverla cerca de la targetPiece
-                }
-            }
-        }
-        return true
-    }
-
-    private func handleDropOnBar(providers: [NSItemProvider]) -> Bool {
-        guard let provider = providers.first else { return false }
-
-        provider.loadObject(ofClass: NSString.self) { (idString, error) in
-            guard let id = idString as? String else { return }
-
-            DispatchQueue.main.async {
-                // Solo nos interesa si viene del tablero para quitarla
-                if let existingIndex = viewModel.board.firstIndex(where: { $0?.id.uuidString == id }),
-                   let piece = viewModel.board[existingIndex] {
-                    viewModel.removePiece(piece)
-                }
-            }
-        }
-        return true
-    }
-}
-
-/// Vista auxiliar para renderizar una pieza con su forma y máscara
-struct PieceView: View {
-    let piece: PuzzlePiece
-    let cellSize: CGFloat
-
-    var body: some View {
-        // La imagen recortada incluye un margen extra del 30% (tabRatio).
-        // Total width = base + 2 * 0.3 * base = 1.6 * base.
-        // El frame debe ser 1.6 veces el cellSize.
-        let scaleFactor: CGFloat = 1.6
-
-        Image(uiImage: piece.image)
-            .resizable()
-            .aspectRatio(contentMode: .fill)
-            .frame(width: cellSize * scaleFactor, height: cellSize * scaleFactor)
-            // Aplicamos la máscara de forma de puzzle
-            .mask(
-                FormaPuzzle(bordes: piece.bordes)
-                    .frame(width: cellSize * scaleFactor, height: cellSize * scaleFactor)
-            )
-            // Desactivamos el clipping para que las pestañas sobresalgan de su celda lógica
-            // .allowsHitTesting(false) // Eliminado para permitir que el drag funcione correctamente
-            .contentShape(Rectangle()) // Para que el hit testing del drag funcione en el contenedor
     }
 }
 
