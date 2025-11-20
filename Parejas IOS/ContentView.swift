@@ -780,6 +780,71 @@ struct PuzzleGameView: View {
         }
         return true
     }
+
+    private func handleDropOnHand(providers: [NSItemProvider], targetPiece: PuzzlePiece) -> Bool {
+        guard let provider = providers.first else { return false }
+
+        provider.loadObject(ofClass: NSString.self) { (idString, error) in
+            guard let id = idString as? String else { return }
+
+            DispatchQueue.main.async {
+                // Si viene de la mano (reordenar)
+                if let sourcePiece = viewModel.pieces.first(where: { $0.id.uuidString == id }) {
+                    viewModel.reorderPieceInHand(piece: sourcePiece, droppedOn: targetPiece)
+                }
+                // Si viene del tablero (quitar)
+                else if let existingIndex = viewModel.board.firstIndex(where: { $0?.id.uuidString == id }),
+                        let piece = viewModel.board[existingIndex] {
+                    viewModel.removePiece(piece)
+                    // Opcional: Moverla cerca de la targetPiece
+                }
+            }
+        }
+        return true
+    }
+
+    private func handleDropOnBar(providers: [NSItemProvider]) -> Bool {
+        guard let provider = providers.first else { return false }
+
+        provider.loadObject(ofClass: NSString.self) { (idString, error) in
+            guard let id = idString as? String else { return }
+
+            DispatchQueue.main.async {
+                // Solo nos interesa si viene del tablero para quitarla
+                if let existingIndex = viewModel.board.firstIndex(where: { $0?.id.uuidString == id }),
+                   let piece = viewModel.board[existingIndex] {
+                    viewModel.removePiece(piece)
+                }
+            }
+        }
+        return true
+    }
+}
+
+/// Vista auxiliar para renderizar una pieza con su forma y máscara
+struct PieceView: View {
+    let piece: PuzzlePiece
+    let cellSize: CGFloat
+
+    var body: some View {
+        // La imagen recortada incluye un margen extra del 30% (tabRatio).
+        // Total width = base + 2 * 0.3 * base = 1.6 * base.
+        // El frame debe ser 1.6 veces el cellSize.
+        let scaleFactor: CGFloat = 1.6
+
+        Image(uiImage: piece.image)
+            .resizable()
+            .aspectRatio(contentMode: .fill)
+            .frame(width: cellSize * scaleFactor, height: cellSize * scaleFactor)
+            // Aplicamos la máscara de forma de puzzle
+            .mask(
+                FormaPuzzle(bordes: piece.bordes)
+                    .frame(width: cellSize * scaleFactor, height: cellSize * scaleFactor)
+            )
+            // Desactivamos el clipping para que las pestañas sobresalgan de su celda lógica
+            // .allowsHitTesting(false) // Eliminado para permitir que el drag funcione correctamente
+            .contentShape(Rectangle()) // Para que el hit testing del drag funcione en el contenedor
+    }
 }
 
 /// Vista auxiliar para renderizar una pieza con su forma y máscara
