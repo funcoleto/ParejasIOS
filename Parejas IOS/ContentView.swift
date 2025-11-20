@@ -412,28 +412,24 @@ class PuzzleViewModel: ObservableObject {
                 let safeCropRect = cropRect.intersection(imageBounds)
 
                 if let slicedCGImage = cgImage.cropping(to: safeCropRect) {
-                    let uiImage: UIImage
+                    // Siempre usamos UIGraphicsImageRenderer para asegurar que la imagen final tenga exactamente
+                    // el tamaño esperado (1.6x la celda) y el contenido esté centrado correctamente.
+                    // Esto evita problemas de alineación en los bordes o cuando el recorte seguro es menor.
 
-                    // Si el recorte seguro es igual al deseado (caso interno), usamos la imagen directamente
-                    if safeCropRect == cropRect {
-                         uiImage = UIImage(cgImage: slicedCGImage, scale: image.scale, orientation: image.imageOrientation)
-                    } else {
-                        // Si falta un trozo (bordes), pintamos en un contexto del tamaño completo
-                        // El tamaño objetivo es cropRect.size
-                        let targetSize = cropRect.size
-                        let format = UIGraphicsImageRendererFormat()
-                        format.scale = image.scale
-                        let renderer = UIGraphicsImageRenderer(size: targetSize, format: format)
+                    let targetSize = cropRect.size
+                    let format = UIGraphicsImageRendererFormat()
+                    format.scale = image.scale
+                    let renderer = UIGraphicsImageRenderer(size: targetSize, format: format)
 
-                        uiImage = renderer.image { context in
-                            // Calcular dónde dibujar el trozo recortado
-                            // La diferencia entre el inicio seguro y el inicio deseado nos da el offset
-                            let drawX = safeCropRect.minX - cropRect.minX
-                            let drawY = safeCropRect.minY - cropRect.minY
+                    let uiImage = renderer.image { context in
+                        // Calcular dónde dibujar el trozo recortado
+                        // La diferencia entre el inicio seguro y el inicio deseado nos da el offset
+                        // cropRect.minX puede ser negativo, safeCropRect.minX siempre >= 0
+                        let drawX = safeCropRect.minX - cropRect.minX
+                        let drawY = safeCropRect.minY - cropRect.minY
 
-                            let partialImage = UIImage(cgImage: slicedCGImage, scale: image.scale, orientation: image.imageOrientation)
-                            partialImage.draw(at: CGPoint(x: drawX, y: drawY))
-                        }
+                        let partialImage = UIImage(cgImage: slicedCGImage, scale: image.scale, orientation: image.imageOrientation)
+                        partialImage.draw(at: CGPoint(x: drawX, y: drawY))
                     }
 
                     let index = y * gridSize + x
@@ -729,6 +725,49 @@ struct PuzzleGameView: View {
             }
         }
         return true
+    }
+
+    private func handleDropOnBar(providers: [NSItemProvider]) -> Bool {
+        guard let provider = providers.first else { return false }
+
+        provider.loadObject(ofClass: NSString.self) { (idString, error) in
+            guard let id = idString as? String else { return }
+
+            DispatchQueue.main.async {
+                // Solo nos interesa si viene del tablero para quitarla
+                if let existingIndex = viewModel.board.firstIndex(where: { $0?.id.uuidString == id }),
+                   let piece = viewModel.board[existingIndex] {
+                    viewModel.removePiece(piece)
+                }
+            }
+        }
+        return true
+    }
+}
+
+/// Vista auxiliar para renderizar una pieza con su forma y máscara
+struct PieceView: View {
+    let piece: PuzzlePiece
+    let cellSize: CGFloat
+
+    var body: some View {
+        // La imagen recortada incluye un margen extra del 30% (tabRatio).
+        // Total width = base + 2 * 0.3 * base = 1.6 * base.
+        // El frame debe ser 1.6 veces el cellSize.
+        let scaleFactor: CGFloat = 1.6
+
+        Image(uiImage: piece.image)
+            .resizable()
+            .aspectRatio(contentMode: .fill)
+            .frame(width: cellSize * scaleFactor, height: cellSize * scaleFactor)
+            // Aplicamos la máscara de forma de puzzle
+            .mask(
+                FormaPuzzle(bordes: piece.bordes)
+                    .frame(width: cellSize * scaleFactor, height: cellSize * scaleFactor)
+            )
+            // Desactivamos el clipping para que las pestañas sobresalgan de su celda lógica
+            // .allowsHitTesting(false) // Eliminado para permitir que el drag funcione correctamente
+            .contentShape(FormaPuzzle(bordes: piece.bordes)) // Usamos la forma exacta para el hit testing
     }
 }
 
