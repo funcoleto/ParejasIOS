@@ -135,6 +135,7 @@ struct PuzzlePiece: Identifiable, Equatable {
     let id = UUID()
     let image: UIImage
     let originalIndex: Int
+    let bordes: BordesPieza
 
     // Equatable conformance
     static func == (lhs: PuzzlePiece, rhs: PuzzlePiece) -> Bool {
@@ -167,17 +168,109 @@ class PuzzleViewModel: ObservableObject {
     private func sliceImage(image: UIImage, gridSize: Int) -> [PuzzlePiece] {
         guard let cgImage = image.cgImage else { return [] }
 
-        let pieceWidth = CGFloat(cgImage.width) / CGFloat(gridSize)
-        let pieceHeight = CGFloat(cgImage.height) / CGFloat(gridSize)
-        var slicedPieces: [PuzzlePiece] = []
+        let width = CGFloat(cgImage.width)
+        let height = CGFloat(cgImage.height)
+        let pieceWidth = width / CGFloat(gridSize)
+        let pieceHeight = height / CGFloat(gridSize)
+
+        // 1. Generar la matriz de bordes
+        var edgesMatrix = Array(repeating: Array(repeating: BordesPieza.standard, count: gridSize), count: gridSize)
 
         for y in 0..<gridSize {
             for x in 0..<gridSize {
-                let rect = CGRect(x: CGFloat(x) * pieceWidth, y: CGFloat(y) * pieceHeight, width: pieceWidth, height: pieceHeight)
-                if let slicedCGImage = cgImage.cropping(to: rect) {
-                    let uiImage = UIImage(cgImage: slicedCGImage, scale: image.scale, orientation: image.imageOrientation)
+                var bordes = BordesPieza.standard
+
+                // Top
+                if y == 0 {
+                    bordes.top = .plano
+                } else {
+                    bordes.top = edgesMatrix[y-1][x].bottom.opuesto
+                }
+
+                // Bottom
+                if y == gridSize - 1 {
+                    bordes.bottom = .plano
+                } else {
+                    bordes.bottom = Bool.random() ? .saliente : .entrante
+                }
+
+                // Left
+                if x == 0 {
+                    bordes.left = .plano
+                } else {
+                    bordes.left = edgesMatrix[y][x-1].right.opuesto
+                }
+
+                // Right
+                if x == gridSize - 1 {
+                    bordes.right = .plano
+                } else {
+                    bordes.right = Bool.random() ? .saliente : .entrante
+                }
+
+                edgesMatrix[y][x] = bordes
+            }
+        }
+
+        var slicedPieces: [PuzzlePiece] = []
+        let tabRatio: CGFloat = 0.3 // Margen extra para las pestañas
+
+        for y in 0..<gridSize {
+            for x in 0..<gridSize {
+                let bordes = edgesMatrix[y][x]
+
+                // Calcular el rectángulo base
+                let baseX = CGFloat(x) * pieceWidth
+                let baseY = CGFloat(y) * pieceHeight
+
+                // Expandir el rectángulo para incluir las pestañas
+                // Necesitamos capturar suficiente imagen alrededor para que cuando la máscara dibuje la pestaña, haya imagen debajo.
+                // Expandimos hacia todas las direcciones un 30% del tamaño de la pieza
+                let extensionX = pieceWidth * tabRatio
+                let extensionY = pieceHeight * tabRatio
+
+                let cropRect = CGRect(
+                    x: baseX - extensionX,
+                    y: baseY - extensionY,
+                    width: pieceWidth + (extensionX * 2),
+                    height: pieceHeight + (extensionY * 2)
+                )
+
+                // Aseguramos que cropRect interseccione con la imagen. Si se sale (coordenadas negativas), usamos lo que hay.
+                // Como necesitamos que la imagen final tenga el tamaño exacto (incluyendo extensiones) para que la máscara encaje,
+                // creamos un contexto del tamaño deseado y dibujamos la parte disponible de la imagen en la posición correcta.
+
+                // 1. Calcular la intersección segura con la imagen original
+                let imageBounds = CGRect(x: 0, y: 0, width: width, height: height)
+                let safeCropRect = cropRect.intersection(imageBounds)
+
+                if let slicedCGImage = cgImage.cropping(to: safeCropRect) {
+                    let uiImage: UIImage
+
+                    // Si el recorte seguro es igual al deseado (caso interno), usamos la imagen directamente
+                    if safeCropRect == cropRect {
+                         uiImage = UIImage(cgImage: slicedCGImage, scale: image.scale, orientation: image.imageOrientation)
+                    } else {
+                        // Si falta un trozo (bordes), pintamos en un contexto del tamaño completo
+                        // El tamaño objetivo es cropRect.size
+                        let targetSize = cropRect.size
+                        let format = UIGraphicsImageRendererFormat()
+                        format.scale = image.scale
+                        let renderer = UIGraphicsImageRenderer(size: targetSize, format: format)
+
+                        uiImage = renderer.image { context in
+                            // Calcular dónde dibujar el trozo recortado
+                            // La diferencia entre el inicio seguro y el inicio deseado nos da el offset
+                            let drawX = safeCropRect.minX - cropRect.minX
+                            let drawY = safeCropRect.minY - cropRect.minY
+
+                            let partialImage = UIImage(cgImage: slicedCGImage, scale: image.scale, orientation: image.imageOrientation)
+                            partialImage.draw(at: CGPoint(x: drawX, y: drawY))
+                        }
+                    }
+
                     let index = y * gridSize + x
-                    let piece = PuzzlePiece(image: uiImage, originalIndex: index)
+                    let piece = PuzzlePiece(image: uiImage, originalIndex: index, bordes: bordes)
                     slicedPieces.append(piece)
                 }
             }
@@ -187,23 +280,40 @@ class PuzzleViewModel: ObservableObject {
         return slicedPieces.shuffled()
     }
 
-    /// Genera una cuadrícula de formas de piezas de puzzle que encajan entre sí.
-
     func placePiece(_ piece: PuzzlePiece, at index: Int) {
-        if board[index] == nil {
-            board[index] = piece
-            pieces.removeAll { $0.id == piece.id }
-            checkIfSolved()
+        // Si la celda ya tiene una pieza, la devolvemos a la mano antes de poner la nueva (o intercambiamos)
+        if let existingPiece = board[index] {
+            pieces.append(existingPiece)
         }
+
+        board[index] = piece
+        pieces.removeAll { $0.id == piece.id }
+        checkIfSolved()
     }
 
-    func returnPiece(at index: Int) {
+    func returnPiece(fromBoardIndex index: Int) {
         guard let pieceToReturn = board[index] else { return }
         board[index] = nil
         pieces.append(pieceToReturn)
         if isSolved {
             isSolved = false
         }
+    }
+
+    // Función para devolver una pieza específica (usada al arrastrar desde el tablero)
+    func removePiece(_ piece: PuzzlePiece) {
+        if let index = board.firstIndex(of: piece) {
+            board[index] = nil
+            pieces.append(piece)
+            if isSolved { isSolved = false }
+        }
+    }
+
+    func reorderPieceInHand(piece: PuzzlePiece, droppedOn targetPiece: PuzzlePiece) {
+        guard let fromIndex = pieces.firstIndex(of: piece),
+              let toIndex = pieces.firstIndex(of: targetPiece) else { return }
+
+        pieces.move(fromOffsets: IndexSet(integer: fromIndex), toOffset: toIndex > fromIndex ? toIndex + 1 : toIndex)
     }
 
     func startTimer() {
@@ -244,68 +354,102 @@ struct PuzzleGameView: View {
     @State private var showingGameOver = false
     @Environment(\.presentationMode) var presentationMode
 
+    // Estado para controlar el drag
+    @State private var draggingPiece: PuzzlePiece?
+
     var body: some View {
-        let columns = Array(repeating: GridItem(.flexible(), spacing: 1), count: viewModel.gridSize)
+        let columns = Array(repeating: GridItem(.flexible(), spacing: 0), count: viewModel.gridSize)
 
         VStack {
+            // --- Cabecera ---
             HStack {
                 Text("Tiempo: \(Score(playerName: "", timeInSeconds: viewModel.elapsedTime, mode: .puzzle, totalItems: 0, puzzleGridSize: nil).displayTime)")
                     .font(.headline)
                     .padding(.leading)
                 Spacer()
             }
+            .padding(.top)
 
-            Text("Completa el Puzzle")
-                .font(.title)
-                .padding()
+            // --- Tablero de Puzzle ---
+            GeometryReader { geo in
+                // Calculamos el tamaño de la celda para asegurar el ajuste
+                let totalWidth = geo.size.width - 40 // Margen
+                let cellSize = totalWidth / CGFloat(viewModel.gridSize)
 
-            LazyVGrid(columns: columns, spacing: 1) {
-                ForEach(0..<viewModel.board.count, id: \.self) { index in
-                    if let piece = viewModel.board[index] {
-                        Image(uiImage: piece.image)
-                            .resizable()
-                            .aspectRatio(1, contentMode: .fit)
-                            .onTapGesture {
-                                viewModel.returnPiece(at: index)
+                LazyVGrid(columns: columns, spacing: 0) {
+                    ForEach(0..<viewModel.board.count, id: \.self) { index in
+                        ZStack {
+                            // Fondo de celda vacía
+                            Rectangle()
+                                .fill(Color.gray.opacity(0.2))
+                                .border(Color.white.opacity(0.2), width: 0.5)
+
+                            // Pieza colocada
+                            if let piece = viewModel.board[index] {
+                                PieceView(piece: piece, cellSize: cellSize)
+                                    .onDrag {
+                                        self.draggingPiece = piece
+                                        return NSItemProvider(object: piece.id.uuidString as NSString)
+                                    }
                             }
-                    } else {
-                        Rectangle()
-                            .fill(Color.gray.opacity(0.3))
-                            .aspectRatio(1, contentMode: .fit)
-                            .onDrop(of: [.text], isTargeted: nil) { providers, _ in
-                                handleDrop(providers: providers, index: index)
-                            }
+                        }
+                        .frame(height: cellSize) // Forzamos altura cuadrada
+                        .zIndex(viewModel.board[index] != nil ? 1 : 0) // Piezas por encima
+                        .onDrop(of: ["public.text"], isTargeted: nil) { providers, _ in
+                            handleDropOnBoard(providers: providers, index: index)
+                        }
                     }
                 }
+                .padding(20)
+                .frame(width: geo.size.width, alignment: .center)
             }
-            .padding()
+            .frame(maxHeight: .infinity) // El tablero ocupa el espacio central
 
-            Spacer()
+            // --- Barra Inferior (Mano) ---
+            // Área para soltar piezas y quitarlas del tablero
+            ZStack {
+                Rectangle()
+                    .fill(Color.blue.opacity(0.1))
+                    .frame(height: 120)
+                    .overlay(
+                        Text("Arrastra aquí para quitar")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                            .padding(.top, 5),
+                        alignment: .top
+                    )
 
-            if !viewModel.pieces.isEmpty && !viewModel.isSolved {
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack {
+                    HStack(spacing: 15) {
                         ForEach(viewModel.pieces) { piece in
-                            Image(uiImage: piece.image)
-                                .resizable()
+                            PieceView(piece: piece, cellSize: 80) // Tamaño fijo en la barra
                                 .frame(width: 80, height: 80)
                                 .onDrag {
-                                    NSItemProvider(object: piece.id.uuidString as NSString)
+                                    self.draggingPiece = piece
+                                    return NSItemProvider(object: piece.id.uuidString as NSString)
+                                }
+                                .onDrop(of: ["public.text"], isTargeted: nil) { providers, _ in
+                                    handleDropOnHand(providers: providers, targetPiece: piece)
                                 }
                         }
                     }
                     .padding()
+                    .frame(minWidth: UIScreen.main.bounds.width) // Asegurar que ocupe todo el ancho para recibir drops vacíos
                 }
+            }
+            .onDrop(of: ["public.text"], isTargeted: nil) { providers, _ in
+                // Drop genérico en la barra (para quitar del tablero sin reordenar específico)
+                handleDropOnBar(providers: providers)
             }
         }
         .navigationTitle("Puzzle")
+        .navigationBarTitleDisplayMode(.inline)
         .onChange(of: viewModel.isSolved) { isSolved in
             if isSolved {
                 showingGameOver = true
             }
         }
         .sheet(isPresented: $showingGameOver) {
-            // Pasamos `rankingManager` desde el entorno
             PuzzleGameOverView(
                 score: viewModel.elapsedTime,
                 gridSize: viewModel.gridSize,
@@ -321,19 +465,93 @@ struct PuzzleGameView: View {
         }
     }
 
-    private func handleDrop(providers: [NSItemProvider], index: Int) -> Bool {
+    // --- Lógica de Drop ---
+
+    private func handleDropOnBoard(providers: [NSItemProvider], index: Int) -> Bool {
         guard let provider = providers.first else { return false }
 
-        provider.loadItem(forTypeIdentifier: "public.text", options: nil) { (data, error) in
-            guard let data = data as? Data, let pieceIdString = String(data: data, encoding: .utf8) else { return }
+        provider.loadObject(ofClass: NSString.self) { (idString, error) in
+            guard let id = idString as? String else { return }
 
             DispatchQueue.main.async {
-                if let pieceToMove = viewModel.pieces.first(where: { $0.id.uuidString == pieceIdString }) {
-                    viewModel.placePiece(pieceToMove, at: index)
+                // Buscar en la mano
+                if let piece = viewModel.pieces.first(where: { $0.id.uuidString == id }) {
+                    viewModel.placePiece(piece, at: index)
+                }
+                // Buscar en el tablero (mover de una celda a otra)
+                else if let existingIndex = viewModel.board.firstIndex(where: { $0?.id.uuidString == id }),
+                        let piece = viewModel.board[existingIndex] {
+                    viewModel.returnPiece(fromBoardIndex: existingIndex)
+                    viewModel.placePiece(piece, at: index)
                 }
             }
         }
         return true
+    }
+
+    private func handleDropOnHand(providers: [NSItemProvider], targetPiece: PuzzlePiece) -> Bool {
+        guard let provider = providers.first else { return false }
+
+        provider.loadObject(ofClass: NSString.self) { (idString, error) in
+            guard let id = idString as? String else { return }
+
+            DispatchQueue.main.async {
+                // Si viene de la mano (reordenar)
+                if let sourcePiece = viewModel.pieces.first(where: { $0.id.uuidString == id }) {
+                    viewModel.reorderPieceInHand(piece: sourcePiece, droppedOn: targetPiece)
+                }
+                // Si viene del tablero (quitar)
+                else if let existingIndex = viewModel.board.firstIndex(where: { $0?.id.uuidString == id }),
+                        let piece = viewModel.board[existingIndex] {
+                    viewModel.removePiece(piece)
+                    // Opcional: Moverla cerca de la targetPiece
+                }
+            }
+        }
+        return true
+    }
+
+    private func handleDropOnBar(providers: [NSItemProvider]) -> Bool {
+        guard let provider = providers.first else { return false }
+
+        provider.loadObject(ofClass: NSString.self) { (idString, error) in
+            guard let id = idString as? String else { return }
+
+            DispatchQueue.main.async {
+                // Solo nos interesa si viene del tablero para quitarla
+                if let existingIndex = viewModel.board.firstIndex(where: { $0?.id.uuidString == id }),
+                   let piece = viewModel.board[existingIndex] {
+                    viewModel.removePiece(piece)
+                }
+            }
+        }
+        return true
+    }
+}
+
+/// Vista auxiliar para renderizar una pieza con su forma y máscara
+struct PieceView: View {
+    let piece: PuzzlePiece
+    let cellSize: CGFloat
+
+    var body: some View {
+        // La imagen recortada incluye un margen extra del 30% (tabRatio).
+        // Total width = base + 2 * 0.3 * base = 1.6 * base.
+        // El frame debe ser 1.6 veces el cellSize.
+        let scaleFactor: CGFloat = 1.6
+
+        Image(uiImage: piece.image)
+            .resizable()
+            .aspectRatio(contentMode: .fill)
+            .frame(width: cellSize * scaleFactor, height: cellSize * scaleFactor)
+            // Aplicamos la máscara de forma de puzzle
+            .mask(
+                FormaPuzzle(bordes: piece.bordes)
+                    .frame(width: cellSize * scaleFactor, height: cellSize * scaleFactor)
+            )
+            // Desactivamos el clipping para que las pestañas sobresalgan de su celda lógica
+            // .allowsHitTesting(false) // Eliminado para permitir que el drag funcione correctamente
+            .contentShape(Rectangle()) // Para que el hit testing del drag funcione en el contenedor
     }
 }
 
