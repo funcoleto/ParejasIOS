@@ -167,19 +167,17 @@ struct FormaPuzzle: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()
 
-        // Definimos el tamaño relativo de la "oreja" o pestaña del puzzle
-        // Asumimos que el rect incluye el espacio para las pestañas salientes si es necesario,
-        // pero para simplificar el layout en SwiftUI, a menudo dibujamos dentro del rect
-        // y usamos un padding negativo o un frame mayor.
-        // Aquí asumiremos que el 'rect' es el cuadrado base y las pestañas se dibujan
-        // ligeramente fuera o dentro dependiendo de la implementación.
-        // Para que encajen visualmente perfecto, lo ideal es insetar el rect base.
+        // Calculamos los márgenes (insets) disponibles para las pestañas de forma independiente
+        // para respetar la proporción de la imagen y el recorte realizado.
+        // Ratio de extension = 0.3. Ratio total = 1.6.
+        // Esto coincide con la lógica en PuzzleViewModel.sliceImage
+        let insetX = rect.width * (0.3 / 1.6)
+        let insetY = rect.height * (0.3 / 1.6)
 
-        // Ajuste: Vamos a considerar que 'rect' es el área total disponible.
-        // El "cuerpo" de la pieza será un poco más pequeño para dar espacio a las pestañas salientes.
-        // Alineamos con el ratio de recorte de la imagen (0.3 de extension / 1.6 total = 0.1875)
-        let tabHeight = rect.width * (0.3 / 1.6)
-        let baseRect = rect.insetBy(dx: tabHeight, dy: tabHeight)
+        // El cuerpo central de la pieza se obtiene restando estos márgenes
+        // insetBy(dx:dy:) aplica el valor a ambos lados, lo cual es correcto
+        // porque sliceImage agregó padding a los 4 lados.
+        let baseRect = rect.insetBy(dx: insetX, dy: insetY)
 
         let minX = baseRect.minX
         let minY = baseRect.minY
@@ -189,34 +187,36 @@ struct FormaPuzzle: Shape {
         // Punto de inicio: Esquina superior izquierda
         path.move(to: CGPoint(x: minX, y: minY))
 
-        // --- Borde Superior ---
+        // --- Borde Superior (Horizontal) ---
+        // Protrusion vertical -> limitado por insetY
         if bordes.top == .plano {
             path.addLine(to: CGPoint(x: maxX, y: minY))
         } else {
-            addTab(to: &path, start: CGPoint(x: minX, y: minY), end: CGPoint(x: maxX, y: minY), type: bordes.top, isHorizontal: true)
+            addTab(to: &path, start: CGPoint(x: minX, y: minY), end: CGPoint(x: maxX, y: minY), type: bordes.top, isHorizontal: true, maxProtrusion: insetY)
         }
 
-        // --- Borde Derecho ---
+        // --- Borde Derecho (Vertical) ---
+        // Protrusion horizontal -> limitado por insetX
         if bordes.right == .plano {
             path.addLine(to: CGPoint(x: maxX, y: maxY))
         } else {
-            addTab(to: &path, start: CGPoint(x: maxX, y: minY), end: CGPoint(x: maxX, y: maxY), type: bordes.right, isHorizontal: false)
+            addTab(to: &path, start: CGPoint(x: maxX, y: minY), end: CGPoint(x: maxX, y: maxY), type: bordes.right, isHorizontal: false, maxProtrusion: insetX)
         }
 
-        // --- Borde Inferior ---
+        // --- Borde Inferior (Horizontal) ---
         if bordes.bottom == .plano {
             path.addLine(to: CGPoint(x: minX, y: maxY))
         } else {
             // Dibujamos de derecha a izquierda
-            addTab(to: &path, start: CGPoint(x: maxX, y: maxY), end: CGPoint(x: minX, y: maxY), type: bordes.bottom, isHorizontal: true)
+            addTab(to: &path, start: CGPoint(x: maxX, y: maxY), end: CGPoint(x: minX, y: maxY), type: bordes.bottom, isHorizontal: true, maxProtrusion: insetY)
         }
 
-        // --- Borde Izquierdo ---
+        // --- Borde Izquierdo (Vertical) ---
         if bordes.left == .plano {
             path.addLine(to: CGPoint(x: minX, y: minY))
         } else {
             // Dibujamos de abajo a arriba
-            addTab(to: &path, start: CGPoint(x: minX, y: maxY), end: CGPoint(x: minX, y: minY), type: bordes.left, isHorizontal: false)
+            addTab(to: &path, start: CGPoint(x: minX, y: maxY), end: CGPoint(x: minX, y: minY), type: bordes.left, isHorizontal: false, maxProtrusion: insetX)
         }
 
         path.closeSubpath()
@@ -224,9 +224,15 @@ struct FormaPuzzle: Shape {
     }
 
     // Función auxiliar para dibujar la pestaña
-    private func addTab(to path: inout Path, start: CGPoint, end: CGPoint, type: TipoBorde, isHorizontal: Bool) {
+    private func addTab(to path: inout Path, start: CGPoint, end: CGPoint, type: TipoBorde, isHorizontal: Bool, maxProtrusion: CGFloat) {
         let distance = isHorizontal ? abs(end.x - start.x) : abs(end.y - start.y)
-        let tabHeight = distance * 0.25 // Altura de la pestaña
+
+        // Calculamos la altura ideal de la pestaña
+        let idealTabHeight = distance * 0.25
+
+        // Limitamos la altura de la pestaña al espacio disponible en la imagen recortada (con un pequeño margen de seguridad)
+        // Si maxProtrusion es muy pequeño (ej. pieza muy ancha pero baja), la pestaña se aplanará para no cortarse.
+        let tabHeight = min(idealTabHeight, maxProtrusion * 0.95)
 
         // Puntos sobre la línea base
         var p1, p2: CGPoint
@@ -236,14 +242,7 @@ struct FormaPuzzle: Shape {
 
         // Offset perpendicular para la altura de la pestaña
         // Para saber hacia dónde es "afuera" o "adentro"
-        // En un recorrido horario (Top->Right->Bottom->Left), "Afuera" es a la izquierda del trazo si el sistema de coord es estándar de pantalla Y-down?
-        // Top: izq->der. Afuera es Arriba (-Y).
-        // Right: arr->aba. Afuera es Derecha (+X).
-        // Bottom: der->izq. Afuera es Abajo (+Y).
-        // Left: aba->arr. Afuera es Izquierda (-X).
-
-        // Sin embargo, 'type' define saliente/entrante respecto al centro de la pieza.
-        // Top saliente = -Y. Top entrante = +Y.
+        // En un recorrido horario (Top->Right->Bottom->Left)
 
         // Vamos a calcular el offset vector.
         let dx = end.x - start.x
@@ -277,9 +276,7 @@ struct FormaPuzzle: Shape {
         // Dibujamos la línea hasta el inicio de la pestaña
         path.addLine(to: p1)
 
-        // Vamos a hacer algo más simple pero efectivo: Curva hacia la punta y vuelta.
-        // Usamos quad curves para un look más orgánico.
-
+        // Curva hacia la punta y vuelta.
         path.addCurve(to: tip,
                       control1: CGPoint(x: p1.x + perpX * tabHeight * 0.2, y: p1.y + perpY * tabHeight * 0.2), // Cuello 1
                       control2: CGPoint(x: tip.x - dx * 0.2, y: tip.y - dy * 0.2)) // Lado 1
