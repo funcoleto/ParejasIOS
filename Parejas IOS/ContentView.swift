@@ -1,6 +1,7 @@
 // ContentView.swift
 import SwiftUI
 import PhotosUI
+import UniformTypeIdentifiers
 
 // --- Componentes del Juego de Puzzle ---
 
@@ -179,7 +180,8 @@ struct FormaPuzzle: Shape {
 
         // Ajuste: Vamos a considerar que 'rect' es el área total disponible.
         // El "cuerpo" de la pieza será un poco más pequeño para dar espacio a las pestañas salientes.
-        let tabHeight = rect.width * 0.2 // Tamaño de la pestaña (20% del ancho)
+        // Alineamos con el ratio de recorte de la imagen (0.3 de extension / 1.6 total = 0.1875)
+        let tabHeight = rect.width * (0.3 / 1.6)
         let baseRect = rect.insetBy(dx: tabHeight, dy: tabHeight)
 
         let minX = baseRect.minX
@@ -490,7 +492,9 @@ class PuzzleViewModel: ObservableObject {
             }
         }
 
-        self.originalPieces = slicedPieces
+        // Guardamos las piezas en su orden original para las pistas
+        self.originalPieces = slicedPieces.sorted(by: { $0.originalIndex < $1.originalIndex })
+
         return slicedPieces.shuffled()
     }
 
@@ -627,7 +631,8 @@ struct PuzzleGameView: View {
                         }
                         .frame(height: cellSize) // Forzamos altura cuadrada
                         .zIndex(viewModel.board[index] != nil ? 1 : 0) // Piezas por encima
-                        .onDrop(of: ["public.text"], isTargeted: nil) { providers, _ in
+                        .contentShape(Rectangle()) // Asegura que toda la celda recibe el drop
+                        .onDrop(of: [UTType.text.identifier, UTType.plainText.identifier], isTargeted: nil) { providers, _ in
                             handleDropOnBoard(providers: providers, index: index)
                         }
                     }
@@ -660,7 +665,7 @@ struct PuzzleGameView: View {
                                     self.draggingPiece = piece
                                     return NSItemProvider(object: piece.id.uuidString as NSString)
                                 }
-                                .onDrop(of: ["public.text"], isTargeted: nil) { providers, _ in
+                                .onDrop(of: [UTType.text.identifier, UTType.plainText.identifier], isTargeted: nil) { providers, _ in
                                     handleDropOnHand(providers: providers, targetPiece: piece)
                                 }
                         }
@@ -669,7 +674,8 @@ struct PuzzleGameView: View {
                     .frame(minWidth: UIScreen.main.bounds.width) // Asegurar que ocupe todo el ancho para recibir drops vacíos
                 }
             }
-            .onDrop(of: ["public.text"], isTargeted: nil) { providers, _ in
+            .contentShape(Rectangle())
+            .onDrop(of: [UTType.text.identifier, UTType.plainText.identifier], isTargeted: nil) { providers, _ in
                 // Drop genérico en la barra (para quitar del tablero sin reordenar específico)
                 handleDropOnBar(providers: providers)
             }
@@ -702,10 +708,27 @@ struct PuzzleGameView: View {
     private func handleDropOnBoard(providers: [NSItemProvider], index: Int) -> Bool {
         guard let provider = providers.first else { return false }
 
-        provider.loadObject(ofClass: NSString.self) { (idString, error) in
-            guard let id = idString as? String else { return }
+        // Intentamos cargar como texto plano o UTF8, ya que NSItemProvider(object: String) puede usar diferentes identificadores
+        if provider.hasItemConformingToTypeIdentifier(UTType.plainText.identifier) {
+            provider.loadItem(forTypeIdentifier: UTType.plainText.identifier, options: nil) { (data, error) in
+                if let data = data as? Data, let id = String(data: data, encoding: .utf8) {
+                    processDropOnBoard(id: id, index: index)
+                } else if let text = data as? String {
+                     processDropOnBoard(id: text, index: index)
+                }
+            }
+        } else {
+            provider.loadObject(ofClass: NSString.self) { (idString, error) in
+                if let id = idString as? String {
+                    processDropOnBoard(id: id, index: index)
+                }
+            }
+        }
+        return true
+    }
 
-            DispatchQueue.main.async {
+    private func processDropOnBoard(id: String, index: Int) {
+        DispatchQueue.main.async {
                 // Buscar en la mano
                 if let piece = viewModel.pieces.first(where: { $0.id.uuidString == id }) {
                     viewModel.placePiece(piece, at: index)
@@ -715,6 +738,43 @@ struct PuzzleGameView: View {
                         let piece = viewModel.board[existingIndex] {
                     viewModel.returnPiece(fromBoardIndex: existingIndex)
                     viewModel.placePiece(piece, at: index)
+                }
+            }
+    }
+
+    private func handleDropOnHand(providers: [NSItemProvider], targetPiece: PuzzlePiece) -> Bool {
+        guard let provider = providers.first else { return false }
+
+        provider.loadObject(ofClass: NSString.self) { (idString, error) in
+            guard let id = idString as? String else { return }
+
+            DispatchQueue.main.async {
+                // Si viene de la mano (reordenar)
+                if let sourcePiece = viewModel.pieces.first(where: { $0.id.uuidString == id }) {
+                    viewModel.reorderPieceInHand(piece: sourcePiece, droppedOn: targetPiece)
+                }
+                // Si viene del tablero (quitar)
+                else if let existingIndex = viewModel.board.firstIndex(where: { $0?.id.uuidString == id }),
+                        let piece = viewModel.board[existingIndex] {
+                    viewModel.removePiece(piece)
+                    // Opcional: Moverla cerca de la targetPiece
+                }
+            }
+        }
+        return true
+    }
+
+    private func handleDropOnBar(providers: [NSItemProvider]) -> Bool {
+        guard let provider = providers.first else { return false }
+
+        provider.loadObject(ofClass: NSString.self) { (idString, error) in
+            guard let id = idString as? String else { return }
+
+            DispatchQueue.main.async {
+                // Solo nos interesa si viene del tablero para quitarla
+                if let existingIndex = viewModel.board.firstIndex(where: { $0?.id.uuidString == id }),
+                   let piece = viewModel.board[existingIndex] {
+                    viewModel.removePiece(piece)
                 }
             }
         }
@@ -784,6 +844,32 @@ struct PieceView: View {
             // Desactivamos el clipping para que las pestañas sobresalgan de su celda lógica
             // .allowsHitTesting(false) // Eliminado para permitir que el drag funcione correctamente
             .contentShape(Rectangle()) // Para que el hit testing del drag funcione en el contenedor
+    }
+}
+
+/// Vista auxiliar para renderizar una pieza con su forma y máscara
+struct PieceView: View {
+    let piece: PuzzlePiece
+    let cellSize: CGFloat
+
+    var body: some View {
+        // La imagen recortada incluye un margen extra del 30% (tabRatio).
+        // Total width = base + 2 * 0.3 * base = 1.6 * base.
+        // El frame debe ser 1.6 veces el cellSize.
+        let scaleFactor: CGFloat = 1.6
+
+        Image(uiImage: piece.image)
+            .resizable()
+            .aspectRatio(contentMode: .fill)
+            .frame(width: cellSize * scaleFactor, height: cellSize * scaleFactor)
+            // Aplicamos la máscara de forma de puzzle
+            .mask(
+                FormaPuzzle(bordes: piece.bordes)
+                    .frame(width: cellSize * scaleFactor, height: cellSize * scaleFactor)
+            )
+            // Desactivamos el clipping para que las pestañas sobresalgan de su celda lógica
+            // .allowsHitTesting(false) // Eliminado para permitir que el drag funcione correctamente
+            .contentShape(FormaPuzzle(bordes: piece.bordes)) // Usamos la forma exacta para el hit testing
     }
 }
 
