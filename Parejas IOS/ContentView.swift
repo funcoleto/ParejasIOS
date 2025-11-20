@@ -315,6 +315,7 @@ class PuzzleViewModel: ObservableObject {
     @Published var isSolved: Bool = false
     @Published var elapsedTime: TimeInterval = 0
     @Published var showHints: Bool
+    public var imageAspectRatio: CGFloat = 1.0
 
     private(set) var originalPieces: [PuzzlePiece] = []
 
@@ -327,6 +328,11 @@ class PuzzleViewModel: ObservableObject {
         self.gridSize = gridSize
         self.settings = settings
         self.showHints = settings.showPuzzleHints
+
+        if image.size.height > 0 {
+            self.imageAspectRatio = image.size.width / image.size.height
+        }
+
         self.board = Array(repeating: nil, count: gridSize * gridSize)
         self.pieces = self.sliceImage(image: image, gridSize: gridSize)
         startTimer()
@@ -540,6 +546,7 @@ struct PuzzleGameView: View {
                 // Calculamos el tamaño de la celda para asegurar el ajuste
                 let totalWidth = geo.size.width - 40 // Margen
                 let cellSize = totalWidth / CGFloat(viewModel.gridSize)
+                let cellHeight = cellSize / viewModel.imageAspectRatio
 
                 LazyVGrid(columns: columns, spacing: 0) {
                     ForEach(0..<viewModel.board.count, id: \.self) { index in
@@ -562,21 +569,21 @@ struct PuzzleGameView: View {
 
                                     FormaPuzzle(bordes: originalPiece.bordes)
                                         .stroke(Color.black.opacity(0.1), lineWidth: 1)
-                                        .frame(width: cellSize * scaleFactor, height: cellSize * scaleFactor)
+                                        .frame(width: cellSize * scaleFactor, height: cellHeight * scaleFactor)
                                         .allowsHitTesting(false)
                                 }
                             }
 
                             // Pieza colocada
                             if let piece = viewModel.board[index] {
-                                PieceView(piece: piece, cellSize: cellSize)
+                                PieceView(piece: piece, width: cellSize, height: cellHeight)
                                     .onDrag {
                                         self.draggingPiece = piece
                                         return NSItemProvider(object: piece.id.uuidString as NSString)
                                     }
                             }
                         }
-                        .frame(height: cellSize) // Forzamos altura cuadrada
+                        .frame(height: cellHeight) // Altura adaptativa
                         .zIndex(viewModel.board[index] != nil ? 1 : 0) // Piezas por encima
                         .contentShape(Rectangle()) // Asegura que toda la celda recibe el drop
                         .onDrop(of: [UTType.text.identifier, UTType.plainText.identifier], isTargeted: nil) { providers, _ in
@@ -606,8 +613,11 @@ struct PuzzleGameView: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 15) {
                         ForEach(viewModel.pieces) { piece in
-                            PieceView(piece: piece, cellSize: 80) // Tamaño fijo en la barra
-                                .frame(width: 80, height: 80)
+                            let handHeight: CGFloat = 80
+                            let handWidth = handHeight * viewModel.imageAspectRatio
+
+                            PieceView(piece: piece, width: handWidth, height: handHeight) // Tamaño proporcional
+                                .frame(width: handWidth, height: handHeight)
                                 .onDrag {
                                     self.draggingPiece = piece
                                     return NSItemProvider(object: piece.id.uuidString as NSString)
@@ -731,7 +741,8 @@ struct PuzzleGameView: View {
 /// Vista auxiliar para renderizar una pieza con su forma y máscara
 struct PieceView: View {
     let piece: PuzzlePiece
-    let cellSize: CGFloat
+    let width: CGFloat
+    let height: CGFloat
 
     var body: some View {
         // La imagen recortada incluye un margen extra del 30% (tabRatio).
@@ -742,11 +753,11 @@ struct PieceView: View {
         Image(uiImage: piece.image)
             .resizable()
             .aspectRatio(contentMode: .fill)
-            .frame(width: cellSize * scaleFactor, height: cellSize * scaleFactor)
+            .frame(width: width * scaleFactor, height: height * scaleFactor)
             // Aplicamos la máscara de forma de puzzle
             .mask(
                 FormaPuzzle(bordes: piece.bordes)
-                    .frame(width: cellSize * scaleFactor, height: cellSize * scaleFactor)
+                    .frame(width: width * scaleFactor, height: height * scaleFactor)
             )
             // Desactivamos el clipping para que las pestañas sobresalgan de su celda lógica
             // .allowsHitTesting(false) // Eliminado para permitir que el drag funcione correctamente
