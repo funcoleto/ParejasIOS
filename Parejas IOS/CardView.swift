@@ -13,7 +13,8 @@ struct CardView: View {
             case .matematicas:
                 EmptyView()
             case .puzzle:
-                EmptyView()
+                Text(card.content)
+                    .font(.system(size: 50))
             case .color:
                 // AHORA USAMOS LA FUNCIÓN DE EXTENSIÓN
                 Color.from(colorName: card.content)

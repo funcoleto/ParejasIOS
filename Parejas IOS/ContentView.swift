@@ -326,12 +326,15 @@ class PuzzleViewModel: ObservableObject {
         self.settings = settings
         self.showHints = settings.showPuzzleHints
 
-        if image.size.height > 0 {
-            self.imageAspectRatio = image.size.width / image.size.height
+        // Corregir la orientación de la imagen antes de procesarla
+        let normalizedImage = image.fixedOrientation()
+
+        if normalizedImage.size.height > 0 {
+            self.imageAspectRatio = normalizedImage.size.width / normalizedImage.size.height
         }
 
         self.board = Array(repeating: nil, count: gridSize * gridSize)
-        self.pieces = self.sliceImage(image: image, gridSize: gridSize)
+        self.pieces = self.sliceImage(image: normalizedImage, gridSize: gridSize)
         startTimer()
     }
 
@@ -1299,5 +1302,21 @@ struct MathGameOverView: View {
             .buttonStyle(.bordered)
         }
         .padding(40)
+    }
+}
+
+// Extension para corregir la orientación de la imagen
+extension UIImage {
+    func fixedOrientation() -> UIImage {
+        if imageOrientation == .up {
+            return self
+        }
+
+        UIGraphicsBeginImageContextWithOptions(size, false, scale)
+        draw(in: CGRect(origin: .zero, size: size))
+        let normalizedImage = UIGraphicsGetImageFromCurrentImageContext()
+        UIGraphicsEndImageContext()
+
+        return normalizedImage ?? self
     }
 }
