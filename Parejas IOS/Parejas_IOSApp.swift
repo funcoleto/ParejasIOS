@@ -59,11 +59,23 @@ class AudioManager: NSObject, ObservableObject, AVAudioPlayerDelegate {
 @main
 struct Parejas_IOSApp: App {
     @StateObject private var audioManager = AudioManager()
+    @State private var showSplash = true
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
-                .environmentObject(audioManager)
+            ZStack {
+                if showSplash {
+                    SplashScreenView {
+                        withAnimation {
+                            showSplash = false
+                        }
+                    }
+                } else {
+                    ContentView()
+                        .environmentObject(audioManager)
+                        .transition(.opacity)
+                }
+            }
         }
     }
 }
