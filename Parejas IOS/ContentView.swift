@@ -822,6 +822,14 @@ struct ContentView: View {
             VStack(spacing: 20) {
                 Spacer()
 
+                Image("WelcomeIcon")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 150, height: 150)
+                    .cornerRadius(20)
+                    .shadow(radius: 10)
+                    .padding(.bottom, 20)
+
                 Text("Juego de Parejas 🧠")
                     .font(.largeTitle).bold()
                     .padding(.bottom, 40)
