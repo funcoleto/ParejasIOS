@@ -533,6 +533,9 @@ struct PuzzleGameView: View {
 
         VStack {
             // --- Cabecera ---
+            // --- Cabecera ---
+            // Ocultamos la cabecera para maximizar el espacio del puzzle y evitar distracciones
+            /*
             HStack {
                 Text("Tiempo: \(Score(playerName: "", timeInSeconds: viewModel.elapsedTime, mode: .puzzle, totalItems: 0, puzzleGridSize: nil).displayTime)")
                     .font(.headline)
@@ -540,59 +543,52 @@ struct PuzzleGameView: View {
                 Spacer()
             }
             .padding(.top)
+            */
 
             // --- Tablero de Puzzle ---
+            // --- Tablero de Puzzle ---
             GeometryReader { geo in
-                // Calculamos el tamaño de la celda para asegurar el ajuste
-                let totalWidth = geo.size.width - 40 // Margen
-                let cellSize = totalWidth / CGFloat(viewModel.gridSize)
-                let cellHeight = cellSize / viewModel.imageAspectRatio
+                let (finalCellWidth, finalCellHeight) = calculateCellSize(for: geo.size)
+                let finalGridWidth = finalCellWidth * CGFloat(viewModel.gridSize)
 
                 LazyVGrid(columns: columns, spacing: 0) {
                     ForEach(0..<viewModel.board.count, id: \.self) { index in
                         ZStack {
                             // Fondo de celda vacía
-                            // Eliminamos el fondo gris transparente (ahora es clear)
-                            // Si está activada la ayuda (showHints), mostramos la silueta
                             if viewModel.board[index] == nil {
                                 Rectangle()
                                     .fill(Color.clear)
-                                    .border(Color.white.opacity(0.1), width: 0.5) // Borde muy sutil para guía visual
+                                    .border(Color.white.opacity(0.1), width: 0.5)
 
                                 if viewModel.showHints && index < viewModel.originalPieces.count {
-                                    // Usamos la pieza original para saber la forma correcta
                                     let originalPiece = viewModel.originalPieces[index]
-
-                                    // Dibujamos solo el contorno o una forma semitransparente muy suave
-                                    // Necesitamos escalar igual que en PieceView
                                     let scaleFactor: CGFloat = 1.6
-
                                     FormaPuzzle(bordes: originalPiece.bordes)
                                         .stroke(Color.black.opacity(0.1), lineWidth: 1)
-                                        .frame(width: cellSize * scaleFactor, height: cellHeight * scaleFactor)
+                                        .frame(width: finalCellWidth * scaleFactor, height: finalCellHeight * scaleFactor)
                                         .allowsHitTesting(false)
                                 }
                             }
 
                             // Pieza colocada
                             if let piece = viewModel.board[index] {
-                                PieceView(piece: piece, width: cellSize, height: cellHeight)
+                                PieceView(piece: piece, width: finalCellWidth, height: finalCellHeight)
                                     .onDrag {
                                         self.draggingPiece = piece
                                         return NSItemProvider(object: piece.id.uuidString as NSString)
                                     }
                             }
                         }
-                        .frame(height: cellHeight) // Altura adaptativa
-                        .zIndex(viewModel.board[index] != nil ? 1 : 0) // Piezas por encima
-                        .contentShape(Rectangle()) // Asegura que toda la celda recibe el drop
+                        .frame(height: finalCellHeight) // Altura adaptativa
+                        .zIndex(viewModel.board[index] != nil ? 1 : 0)
+                        .contentShape(Rectangle())
                         .onDrop(of: [UTType.text.identifier, UTType.plainText.identifier], isTargeted: nil) { providers, _ in
                             handleDropOnBoard(providers: providers, index: index)
                         }
                     }
                 }
-                .padding(20)
-                .frame(width: geo.size.width, alignment: .center)
+                .frame(width: finalGridWidth) // Fijamos el ancho del grid
+                .position(x: geo.frame(in: .local).midX, y: geo.frame(in: .local).midY) // Centramos manualmente
             }
             .frame(maxHeight: .infinity) // El tablero ocupa el espacio central
 
@@ -735,6 +731,26 @@ struct PuzzleGameView: View {
             }
         }
         return true
+    }
+
+    private func calculateCellSize(for size: CGSize) -> (CGFloat, CGFloat) {
+        let maxWidth = size.width - 20 // Margen horizontal reducido
+        let maxHeight = size.height - 20 // Margen vertical
+
+        // 1. Intentar ajustar por ancho
+        let widthBasedCellWidth = maxWidth / CGFloat(viewModel.gridSize)
+        let widthBasedCellHeight = widthBasedCellWidth / viewModel.imageAspectRatio
+        let totalHeight1 = widthBasedCellHeight * CGFloat(viewModel.gridSize)
+
+        // 2. Intentar ajustar por alto (si el ancho resulta en mucha altura)
+        let heightBasedCellHeight = maxHeight / CGFloat(viewModel.gridSize)
+        let heightBasedCellWidth = heightBasedCellHeight * viewModel.imageAspectRatio
+        
+        if totalHeight1 <= maxHeight {
+            return (widthBasedCellWidth, widthBasedCellHeight)
+        } else {
+            return (heightBasedCellWidth, heightBasedCellHeight)
+        }
     }
 }
 
