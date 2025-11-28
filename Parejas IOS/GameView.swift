@@ -13,20 +13,22 @@ struct GameView: View {
     var body: some View {
         VStack {
             // Marcadores de Estado
-            HStack {
-                Text("Modo: **\(viewModel.currentMode.rawValue)**")
-                    .lineLimit(1)
-                
-                Spacer()
-                
-                // Mostrar Tiempo y Volteos en vertical para ahorrar espacio en iPhone
-                VStack(alignment: .trailing) {
-                    Text("Tiempo: **\(Score(playerName: "", timeInSeconds: viewModel.timeElapsed, mode: .color, totalItems: viewModel.cards.count / 2, puzzleGridSize: nil).displayTime)**")
-                    Text("Volteos: **\(viewModel.flipCount)**")
+            if viewModel.currentMode != .puzzle {
+                HStack {
+                    Text("Modo: **\(viewModel.currentMode.rawValue)**")
+                        .lineLimit(1)
+                    
+                    Spacer()
+                    
+                    // Mostrar Tiempo y Volteos en vertical para ahorrar espacio en iPhone
+                    VStack(alignment: .trailing) {
+                        Text("Tiempo: **\(Score(playerName: "", timeInSeconds: viewModel.timeElapsed, mode: .color, totalItems: viewModel.cards.count / 2, puzzleGridSize: nil).displayTime)**")
+                        Text("Volteos: **\(viewModel.flipCount)**")
+                    }
                 }
+                .font(.headline)
+                .padding([.horizontal, .top])
             }
-            .font(.headline)
-            .padding([.horizontal, .top])
             
             // Geometría para adaptar la cuadrícula al espacio disponible
             GeometryReader { geometry in
@@ -44,7 +46,7 @@ struct GameView: View {
                             }
                     }
                 }
-                .padding()
+                .padding(10)
             }
         }
         .navigationTitle("Jugar")
@@ -91,6 +93,7 @@ struct GameView: View {
 
         let cardAspectRatio: CGFloat = 2/3
         let spacing: CGFloat = 10 // Espaciado horizontal y vertical
+        let gridPadding: CGFloat = 10 // Padding alrededor del grid
 
         var bestColumnCount = 1
         var maxCardHeight: CGFloat = 0
@@ -99,13 +102,17 @@ struct GameView: View {
         // sin que la altura total de la cuadrícula exceda la altura disponible.
         for columnCount in 2...10 { // Prueba con un número razonable de columnas
             let totalSpacingWidth = spacing * CGFloat(columnCount - 1)
-            let cardWidth = (size.width - totalSpacingWidth - 20) / CGFloat(columnCount) // 20 para padding
+            let availableWidth = size.width - (gridPadding * 2)
+            let cardWidth = (availableWidth - totalSpacingWidth) / CGFloat(columnCount)
             let cardHeight = cardWidth / cardAspectRatio
 
             let rowCount = ceil(CGFloat(totalCards) / CGFloat(columnCount))
             let totalGridHeight = (rowCount * cardHeight) + (spacing * (rowCount - 1))
+            
+            // Restamos el padding vertical del espacio disponible
+            let availableHeight = size.height - (gridPadding * 2)
 
-            if totalGridHeight <= size.height && cardHeight > maxCardHeight {
+            if totalGridHeight <= availableHeight && cardHeight > maxCardHeight {
                 maxCardHeight = cardHeight
                 bestColumnCount = columnCount
             }
