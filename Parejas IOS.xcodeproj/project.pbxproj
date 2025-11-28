@@ -24,6 +24,7 @@
 		7A0E79AB2EC5E85E0069E4B2 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A0E79AA2EC5E85E0069E4B2 /* ContentView.swift */; };
 		7AAEC4292EC76D5D00F6D042 /* acierto.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 7AAEC4272EC76D5C00F6D042 /* acierto.mp3 */; };
 		7AAEC42A2EC76D5D00F6D042 /* error.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 7AAEC4282EC76D5D00F6D042 /* error.mp3 */; };
+		7A0E79AF2EC5E4870069E4B3 /* SplashScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A0E799F2EC5E4870069E4B3 /* SplashScreenView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -46,6 +47,7 @@
 		7A0E79AC2EC5E9420069E4B2 /* Parejas IOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Parejas IOS.entitlements"; sourceTree = "<group>"; };
 		7AAEC4272EC76D5C00F6D042 /* acierto.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = acierto.mp3; sourceTree = "<group>"; };
 		7AAEC4282EC76D5D00F6D042 /* error.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = error.mp3; sourceTree = "<group>"; };
+		7A0E799F2EC5E4870069E4B3 /* SplashScreenView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SplashScreenView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -94,6 +96,7 @@
 				7A0E79982EC5E4860069E4B2 /* RankingView.swift */,
 				7A0E79992EC5E4860069E4B2 /* Score.swift */,
 				7A0E79802EC5E41E0069E4B2 /* Parejas_IOSApp.swift */,
+				7A0E799F2EC5E4870069E4B3 /* SplashScreenView.swift */,
 				7A0E79842EC5E4230069E4B2 /* Assets.xcassets */,
 				7A0E79862EC5E4230069E4B2 /* Preview Content */,
 			);
@@ -193,6 +196,7 @@
 				7A0E799C2EC5E4870069E4B2 /* CardView.swift in Sources */,
 				7A0E79A12EC5E4870069E4B2 /* GameViewModel.swift in Sources */,
 				7A0E799E2EC5E4870069E4B2 /* GameView.swift in Sources */,
+				7A0E79AF2EC5E4870069E4B3 /* SplashScreenView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
